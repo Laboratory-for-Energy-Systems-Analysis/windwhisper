@@ -1,3 +1,45 @@
 [build-system]
-requires = ["setuptools>=45"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "windwhisper"
+version = "0.0.1"
+description = "Noise modelling of wind turbines"
+readme = "README"
+authors = [
+    {name = "Romain Sacchi", email = "romain.sacchi@psi.ch"},
+    {name = "Maxime Balandret", email = "maxime.balandret@psi.ch"}
+]
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+dependencies = [
+    "tqdm",
+    "haversine",
+    "folium",
+    "shapely",
+    "xarray",
+    "scikit-learn",
+    "numpy<2.0.0",
+    "osmnx",
+    "skops",
+    "matplotlib",
+    "netCDF4",
+    "seaborn",
+    "ipywidgets",
+    "requests",
+    "rasterio",
+    "pyproj",
+    "python-dotenv",
+    "geojson",
+    "pyyaml"
+]
+
+[project.urls]
+Homepage = "https://github.com/Laboratory-for-Energy-Systems-Analysis/windwhisper"
+
+[tool.setuptools.packages.find]
+include = ["windwhisper*"]
+
+[tool.setuptools.package-data]
+"windwhisper.data.training_data" = ["*.csv"]

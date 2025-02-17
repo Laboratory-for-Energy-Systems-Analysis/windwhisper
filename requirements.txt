@@ -14,7 +14,7 @@ ipywidgets
 requests
 rasterio
 pyproj
-dotenv
+python-dotenv
 geojson
 pyyaml
 rasterio
