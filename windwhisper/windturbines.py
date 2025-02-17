@@ -120,10 +120,7 @@ def load_model(filepath=None) -> Tuple[RegressorMixin, List[str]]:
         raise FileNotFoundError(f"The trained model file {filepath} was not found.")
 
     # Get the list of untrusted types
-    unknown_types = sio.get_untrusted_types(filepath)
-
-    # Review the unknown_types list
-    print("Unknown types:", unknown_types)
+    unknown_types = sio.get_untrusted_types(file=filepath)
 
     # If these types are safe, load both model and noise columns
     model, noise_cols = sio.load(
