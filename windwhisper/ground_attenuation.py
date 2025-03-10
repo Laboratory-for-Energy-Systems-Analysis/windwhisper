@@ -65,14 +65,21 @@ def compute_turbine_attenuation(args):
     return ground_attenuation, obstacles_attenuation
 
 
-def calculate_ground_attenuation(haversine_distances, longitudes, latitudes, wind_turbines):
+def calculate_ground_attenuation(
+        haversine_distances,
+        longitudes,
+        latitudes,
+        wind_turbines,
+        elevation_data
+):
     """
     Calculate the ground attenuation in dB, according to ISO 9613-2:2024.
     """
 
     elevation_grid = get_elevation_grid(
         longitudes=longitudes,
-        latitudes=latitudes
+        latitudes=latitudes,
+        elevation_data=elevation_data
     )
 
     if elevation_grid is None:

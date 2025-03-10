@@ -240,6 +240,7 @@ class WindTurbines:
         retrain_model: bool = False,
         dataset_file: str = None,
         wind_speed_data: xr.DataArray | str = None,
+        elevation_data: xr.DataArray | str = None,
         humidity: int = 70,
         temperature: int = 10,
     ):
@@ -284,7 +285,8 @@ class WindTurbines:
         self.noise_propagation = NoisePropagation(
             wind_turbines=self.wind_turbines,
             humidity=humidity,
-            temperature=temperature
+            temperature=temperature,
+            elevation_data=elevation_data
         )
         self.noise_analysis = NoiseAnalysis(
             noise_propagation=self.noise_propagation,

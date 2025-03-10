@@ -69,6 +69,7 @@ class NoisePropagation:
         wind_turbines: dict,
         humidity: float = 70,
         temperature: float = 20,
+        elevation_data: xr.DataArray = None,
     ):
         """
         Initialize the NoiseMap class.
@@ -82,6 +83,7 @@ class NoisePropagation:
         self.humidity = humidity
         self.wind_turbines = wind_turbines
         self.LAT, self.LON = define_bounding_box(wind_turbines)
+        self.elevation_data = elevation_data
 
 
         self.calculate_noise_attenuation_terms()
@@ -316,7 +318,8 @@ class NoisePropagation:
             self.haversine_distances,
             self.LON,
             self.LAT,
-            self.wind_turbines
+            self.wind_turbines,
+            self.elevation_data
         )
 
         data_vars = {}
