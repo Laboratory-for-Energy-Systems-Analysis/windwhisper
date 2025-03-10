@@ -69,7 +69,7 @@ class NoisePropagation:
         wind_turbines: dict,
         humidity: float = 70,
         temperature: float = 20,
-        elevation_data: xr.DataArray = None,
+        elevation_data: xr.Dataset = None,
     ):
         """
         Initialize the NoiseMap class.
