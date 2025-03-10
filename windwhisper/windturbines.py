@@ -209,6 +209,7 @@ class WindTurbines:
         retrain_model: bool = False,
         dataset_file: str = None,
         wind_speed_data: xr.DataArray | str = None,
+        elevation_data: xr.DataArray | str = None,
         humidity: int = 70,
         temperature: int = 10,
     ):

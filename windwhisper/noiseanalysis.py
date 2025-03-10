@@ -30,13 +30,14 @@ class NoiseAnalysis:
             resolution=self.lden_map.shape
         )
 
-        self.settlement_map = get_wsf_map_preview(
-            lon_min=lon_min,
-            lon_max=lon_max,
-            lat_min=lat_min,
-            lat_max=lat_max,
-            resolution=self.lden_map.shape
-        )
+        #self.settlement_map = get_wsf_map_preview(
+        #    lon_min=lon_min,
+        #    lon_max=lon_max,
+        #    lat_min=lat_min,
+        #    lat_max=lat_max,
+        #    resolution=self.lden_map.shape
+        #)
+        self.settlement_map = None
 
         self.merged_map = self.merge_maps()
 
@@ -55,18 +56,22 @@ class NoiseAnalysis:
             lat=lat
         ).fillna(0)
 
-        # re-interpolate the settlement map to match the shape of the lden map
-        self.settlement_map = self.settlement_map.interp(
-            lon=lon,
-            lat=lat
-        ).fillna(0)
+        if self.settlement_map:
+            # re-interpolate the settlement map to match the shape of the lden map
+            self.settlement_map = self.settlement_map.interp(
+                lon=lon,
+                lat=lat
+            ).fillna(0)
 
         # Combine the two datasets into a single xarray
         merged_dataset = xr.Dataset({
             "ambient": self.ambient_noise_map,
             "wind": self.noise_propagation.incr_noise_att["noise-distance-atmospheric-ground-obstacle"],
-            "settlement": self.settlement_map,
+            #"settlement": self.settlement_map,
         })
+
+        if self.settlement_map:
+            merged_dataset["settlement"] = self.settlement_map
 
         # Calculate the combined noise level (in dB)
         # using the logarithmic formula

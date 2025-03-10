@@ -32,36 +32,35 @@ def generate_contours(data, levels, name="Noise Contours"):
     # Create a list to store GeoJSON features
     geojson_features = []
 
-    for i, collection in enumerate(c.collections):
-        for path in collection.get_paths():
-            for line in path.to_polygons():
-                coords = [
-                    (x, y) for x, y in line
-                ]
+    for i, path in enumerate(c.get_paths()):
+        for line in path.to_polygons():
+            coords = [
+                (x, y) for x, y in line
+            ]
 
-                # Rotation angle in degrees
-                rotation_angle = 0  # Adjust as needed
+            # Rotation angle in degrees
+            rotation_angle = 0  # Adjust as needed
 
-                # Create a Shapely Polygon object
-                polygon = Polygon(coords)
+            # Create a Shapely Polygon object
+            polygon = Polygon(coords)
 
-                # Calculate the centroid
-                centroid = polygon.centroid
-                centroid_coords = (centroid.y, centroid.x)  # Latitude, Longitude
+            # Calculate the centroid
+            centroid = polygon.centroid
+            centroid_coords = (centroid.y, centroid.x)  # Latitude, Longitude
 
-                # Apply rotation
-                rotated_polygon_coords = rotate_coordinates(coords, rotation_angle, centroid_coords)
+            # Apply rotation
+            rotated_polygon_coords = rotate_coordinates(coords, rotation_angle, centroid_coords)
 
-                # Add the geometry as a GeoJSON feature
-                geojson_features.append(
-                    geojson.Feature(
-                        geometry=mapping(LineString(coords)),
-                        properties={
-                            "level": c.levels[i],
-                            "color": color_map[c.levels[i]]
-                        }
-                    )
+            # Add the geometry as a GeoJSON feature
+            geojson_features.append(
+                geojson.Feature(
+                    geometry=mapping(LineString(coords)),
+                    properties={
+                        "level": c.levels[i],
+                        "color": color_map[c.levels[i]]
+                    }
                 )
+            )
 
     # Create a GeoJSON FeatureCollection
     geojson_object = geojson.FeatureCollection(geojson_features)

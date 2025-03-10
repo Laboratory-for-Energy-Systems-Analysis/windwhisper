@@ -53,7 +53,7 @@ the L_den indicator. Results can be exported on a map.
     wt = windturbines.WindTurbines(
         wind_turbines=wind_turbines,
         wind_speed_data=data,
-        #retrain_model=True
+        #retrain_model=True # if you want to retrain the model or train it for the first time.
     )
 
 ```
