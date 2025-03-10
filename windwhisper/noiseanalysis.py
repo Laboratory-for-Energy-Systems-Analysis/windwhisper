@@ -1,8 +1,11 @@
 import numpy as np
 import xarray as xr
+from geojson import FeatureCollection
+from typing import Any
+
 from .ambient_noise import get_ambient_noise_levels
 from .settlement import get_wsf_map_preview
-from .plotting import generate_map
+from .plotting import generate_map, create_geojson
 
 
 class NoiseAnalysis:
@@ -14,7 +17,11 @@ class NoiseAnalysis:
 
     """
 
-    def __init__(self, noise_propagation, wind_turbines):
+    def __init__(
+            self,
+            noise_propagation,
+            wind_turbines,
+    ):
         self.noise_propagation = noise_propagation
         self.wind_turbines = wind_turbines
         self.lden_map = noise_propagation.lden_map
@@ -131,7 +138,23 @@ class NoiseAnalysis:
 
         return merged_dataset
 
-    def generate_map(self):
-        generate_map(self.merged_map)
+    def generate_map(self, filepath="noise_map.html"):
+        generate_map(
+            noise_dataset=self.merged_map,
+            filepath=filepath
+        )
+
+
+    def get_geojson_contours(self) -> tuple[Any, Any, Any, Any, Any]:
+        """
+        Generate a GeoJSON object containing the contours of the noise levels.
+        """
+        return (
+            create_geojson(self.merged_map["ambient"]),
+            create_geojson(self.merged_map["wind"]),
+            create_geojson(self.merged_map["combined"]),
+            create_geojson(self.merged_map["net"]),
+            create_geojson(self.merged_map["flip"]),
+        )
 
 
