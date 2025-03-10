@@ -137,7 +137,10 @@ def rotate_coordinates(coords, angle, center):
 
     return rotated_coords
 
-def generate_map(noise_dataset):
+def generate_map(
+        noise_dataset,
+        filepath="noise_map.html"
+):
 
     # Create Folium map
     center_lat = np.mean(noise_dataset.lat.values)
@@ -200,5 +203,49 @@ def generate_map(noise_dataset):
     folium.LayerControl().add_to(m)
 
     # Save the map as an HTML file
-    m.save("noise_map.html")
+    m.save(filepath)
+
+
+def create_geojson(data):
+
+    color_map = {
+        30: "green",
+        40: "yellow",
+        55: "orange",
+        60: "red",
+        70: "purple",
+    }
+    levels = [30, 40, 55, 60]
+
+    # Generate the contours
+    c = plt.contour(
+        data.lon, data.lat, data.data,
+        levels=levels,
+        colors=[color_map[k] for k in color_map.keys()],
+        linewidths=1.5
+    )
+
+    # Create a list to store GeoJSON features
+    geojson_features = []
+
+    for i, collection in enumerate(c.collections):
+        for path in collection.get_paths():
+            for line in path.to_polygons():
+                coords = [
+                    (x, y) for x, y in line
+                ]
+
+                # Add the geometry as a GeoJSON feature
+                geojson_features.append(
+                    geojson.Feature(
+                        geometry=mapping(LineString(coords)),
+                        properties={
+                            "level": c.levels[i],
+                            "color": color_map[c.levels[i]]
+                        }
+                    )
+                )
+
+    # Create a GeoJSON FeatureCollection
+    return geojson.FeatureCollection(geojson_features)
 
