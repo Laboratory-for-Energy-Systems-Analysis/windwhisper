@@ -246,16 +246,7 @@ class WindTurbines:
                 self.model, self.noise_cols = train_wind_turbine_model(dataset_file)
 
         self.fetch_noise_level_vs_wind_speed()
-        self.noise_propagation = NoisePropagation(
-            wind_turbines=self.wind_turbines,
-            humidity=humidity,
-            temperature=temperature
-        )
-        self.noise_analysis = NoiseAnalysis(
-            noise_propagation=self.noise_propagation,
-            wind_turbines=self.wind_turbines,
-        )
-        self.wind_turbines = self.noise_analysis.wind_turbines
+
 
     def fetch_noise_level_vs_wind_speed(self):
         """
