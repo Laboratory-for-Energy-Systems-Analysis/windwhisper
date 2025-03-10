@@ -78,16 +78,16 @@ def get_elevation_grid(
             # Create the xarray DataArray
             da = xr.DataArray(
                 data=grid.values,
-                dims=["lat", "lon"],
+                dims=["latitude", "longitude"],
                 coords={
-                    "lat": grid.index.values,
-                    "lon": grid.columns.values,
+                    "latitude": grid.index.values,
+                    "longitude": grid.columns.values,
                 },
                 name="elevation",
             )
 
             # interpolate to latitudes and longitudes
-            da = da.interp(lat=latitudes, lon=longitudes)
+            da = da.interp(latitude=latitudes, longitude=longitudes)
 
             return da
 
@@ -97,13 +97,30 @@ def get_elevation_grid(
 
     else:
         # we use directly elevation data
-        print("Using elevation data")
-        return elevation_data.interp(lat=latitudes, lon=longitudes,)
+        print("Using local elevation data")
+        new_coords = {"latitude": ("latitude", latitudes), "longitude": ("longitude", longitudes)}
+
+        # Perform bilinear interpolation
+        interpolated_ds = elevation_data.interp(new_coords, method="linear")
+        return interpolated_ds.to_array().squeeze()
+
+
+import numpy as np
+import xarray as xr
+
 
 def distances_with_elevation(distances, relative_elevations):
     """
     Based on elevation and haversine distance, calculate the distance between two points
     considering the elevation difference.
     """
-    return np.sqrt(distances ** 2 + relative_elevations ** 2)
+    # Ensure both arrays have the same shape
+    assert distances.shape == relative_elevations.shape, "Shapes must match!"
+
+    # Perform element-wise operation without expanding dimensions
+    euclidean_distances = np.sqrt(distances.data ** 2 + relative_elevations.data ** 2)
+
+    # Return as an xarray DataArray to maintain metadata
+    return xr.DataArray(euclidean_distances, coords=distances.coords, dims=distances.dims)
+
 

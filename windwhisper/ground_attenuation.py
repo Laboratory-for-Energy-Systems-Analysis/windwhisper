@@ -8,8 +8,14 @@ from multiprocessing import Pool
 import numpy as np
 import xarray as xr
 from scipy.interpolate import RegularGridInterpolator
+from dotenv import load_dotenv
+import os
+import sys
 
 from windwhisper.elevation_grid import get_elevation_grid, distances_with_elevation
+
+load_dotenv()
+NOISE_MAP_RESOLUTION = int(os.getenv("NOISE_MAP_RESOLUTION", 100))
 
 # Move compute_turbine_attenuation outside
 def compute_turbine_attenuation(args):
@@ -28,8 +34,8 @@ def compute_turbine_attenuation(args):
 
             # Receiver elevation
             receiver_elevation = elevation_grid.values[i, j]
-            path_latitudes = np.linspace(source_lat, lat, 100)
-            path_longitudes = np.linspace(source_lon, lon, 100)
+            path_latitudes = np.linspace(source_lat, lat, NOISE_MAP_RESOLUTION)
+            path_longitudes = np.linspace(source_lon, lon, NOISE_MAP_RESOLUTION)
             path_coords = np.column_stack((path_latitudes, path_longitudes))
 
             # Elevation profile along the path
@@ -40,7 +46,7 @@ def compute_turbine_attenuation(args):
             obstacle_mask = path_elevations > (straight_elevation + 5)  # Boolean mask of obstacles
 
             if np.any(obstacle_mask):  # Check if there are any obstacles
-                #print(obstacle_mask.sum())
+
                 # Calculate distances for diffraction
                 obstacle_index = np.argmax(obstacle_mask)
                 d_ss = obstacle_index / len(path_elevations) * euclidian_distances.values[i, j]
@@ -60,7 +66,7 @@ def compute_turbine_attenuation(args):
             area = np.clip(np.trapz(straight_elevation - path_elevations, dx=1), 0, None)
             mean_height = area / euclidian_distances.values[i, j]
             a_gr = 4.8 - ((2 * mean_height) / euclidian_distances.values[i, j]) * (17 + (300 / euclidian_distances.values[i, j]))
-            ground_attenuation[i, j] = max(0, a_gr)
+            ground_attenuation[i, j] = max(0.0, float(a_gr))
 
     return ground_attenuation, obstacles_attenuation
 
@@ -95,14 +101,16 @@ def calculate_ground_attenuation(
     relative_elevations = elevation_grid - xr.concat(
         [
             elevation_grid.interp(
-                coords={"lat": specs["position"][0], "lon": specs["position"][1]}
+                coords={"latitude": specs["position"][0], "longitude": specs["position"][1]}
             ).expand_dims(dim={"turbine": [turbine_name]})
             for turbine_name, specs in wind_turbines.items()
         ],
         dim="turbine",
     )
 
+
     euclidian_distances = distances_with_elevation(haversine_distances, relative_elevations)
+
 
     # Prepare arguments for parallel execution
     args = [
@@ -126,4 +134,5 @@ def calculate_ground_attenuation(
     ground_attenuation = np.min([res[0] for res in results], axis=0)
     obstacles_attenuation = np.min([res[1] for res in results], axis=0)
 
-    return elevation_grid, xr.DataArray(ground_attenuation, dims=("lat", "lon"), coords={"lat": latitudes, "lon": longitudes}), xr.DataArray(obstacles_attenuation, dims=("lat", "lon"), coords={"lat": latitudes, "lon": longitudes})
+
+    return elevation_grid, xr.DataArray(ground_attenuation, dims=("latitude", "longitude"), coords={"latitude": latitudes, "longitude": longitudes}), xr.DataArray(obstacles_attenuation, dims=("latitude", "longitude"), coords={"latitude": latitudes, "longitude": longitudes})
