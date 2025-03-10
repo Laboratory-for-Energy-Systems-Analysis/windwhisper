@@ -197,36 +197,6 @@ def check_wind_turbine_specs(wind_turbines: dict) -> dict:
     return wind_turbines
 
 
-def check_listeners(listeners):
-    """
-    Check that the list of dictionaries contain all the needed keys.
-    :param listeners: list of dictionaries with listeners specifics
-    :return: None or Exception
-    """
-
-    mandatory_fields = [
-        "position",
-    ]
-
-    for listener, specs in listeners.items():
-        if not all(x in specs for x in mandatory_fields):
-            raise KeyError(f"Missing mandatory field(s) in listener {listener}.")
-
-        # check that the value for `position`is a tuple of two floats
-        if not isinstance(specs["position"], tuple):
-            raise ValueError(f"The position of listener {listener} must be a tuple.")
-        if len(specs["position"]) != 2:
-            raise ValueError(
-                f"The position of listener {listener} must contain two values."
-            )
-        if not all(isinstance(x, float) for x in specs["position"]):
-            raise ValueError(
-                f"The position of listener {listener} must contain two floats."
-            )
-
-    return listeners
-
-
 class WindTurbines:
     """
     This class models a wind turbine and predicts noise levels based on wind speed.
@@ -235,7 +205,6 @@ class WindTurbines:
     def __init__(
         self,
         wind_turbines: dict,
-        listeners: dict = None,
         model_file: str = None,
         retrain_model: bool = False,
         dataset_file: str = None,
@@ -251,8 +220,6 @@ class WindTurbines:
         :type dataset_file: str
         :param wind_turbines: A dictionary containing the wind turbine specifications.
         :type wind_turbines: dict
-        :param listeners: A dictionary containing the listener specifications.
-        :type listeners: dict
         :param retrain_model: If True, the model is retrained using the dataset file.
         :type retrain_model: bool
         :param wind_speed_data: A xarray.DataArray containing the wind speed data.
@@ -266,8 +233,6 @@ class WindTurbines:
         self.noise_propagation = None
         self.ws = None
         self.wind_turbines = check_wind_turbine_specs(wind_turbines)
-        if listeners is not None:
-            self.listeners = check_listeners(listeners)
 
         self.fetch_wind_speeds(wind_speed_data)
 
