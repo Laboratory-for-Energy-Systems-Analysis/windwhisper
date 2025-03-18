@@ -42,4 +42,5 @@ Homepage = "https://github.com/Laboratory-for-Energy-Systems-Analysis/windwhispe
 include = ["windwhisper*"]
 
 [tool.setuptools.package-data]
+"windwhisper.data" = ["default_model.skops", "absorption_coefficients.yaml"]
 "windwhisper.data.training_data" = ["*.csv"]
