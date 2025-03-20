@@ -228,24 +228,22 @@ def create_geojson(data):
     # Create a list to store GeoJSON features
     geojson_features = []
 
-    for i, collection in enumerate(c.collections):
-        for path in collection.get_paths():
-            for line in path.to_polygons():
-                coords = [
-                    (x, y) for x, y in line
-                ]
+    for i, segs in enumerate(c.allsegs):
+        for line in segs:
+            coords = [
+                (x, y) for x, y in line
+            ]
 
-                # Add the geometry as a GeoJSON feature
-                geojson_features.append(
-                    geojson.Feature(
-                        geometry=mapping(LineString(coords)),
-                        properties={
-                            "level": c.levels[i],
-                            "color": color_map[c.levels[i]]
-                        }
-                    )
+            # Add the geometry as a GeoJSON feature
+            geojson_features.append(
+                geojson.Feature(
+                    geometry=mapping(LineString(coords)),
+                    properties={
+                        "level": c.levels[i],
+                        "color": color_map[c.levels[i]]
+                    }
                 )
+            )
 
     # Create a GeoJSON FeatureCollection
     return geojson.FeatureCollection(geojson_features)
-
