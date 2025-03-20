@@ -23,7 +23,7 @@ dependencies = [
     "numpy<2.0.0",
     "osmnx",
     "skops",
-    "matplotlib",
+    "matplotlib>=3.9.0",
     "netCDF4",
     "seaborn",
     "ipywidgets",
