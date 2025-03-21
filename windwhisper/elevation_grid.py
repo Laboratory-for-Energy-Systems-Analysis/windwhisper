@@ -100,8 +100,12 @@ def get_elevation_grid(
         print("Using local elevation data")
         new_coords = {"latitude": ("latitude", latitudes), "longitude": ("longitude", longitudes)}
 
+        # Ensure the data is sorted
+        if not np.all(np.diff(elevation_data.latitude.values) >= 0) and not np.all(np.diff(elevation_data.longitude.values) >= 0):
+            elevation_data = elevation_data.sortby(["latitude", "longitude"])
+
         # Perform bilinear interpolation
-        interpolated_ds = elevation_data.interp(new_coords, method="linear")
+        interpolated_ds = elevation_data.interp(new_coords, method="linear", assume_sorted=True)
         return interpolated_ds.to_array().squeeze()
 
 
