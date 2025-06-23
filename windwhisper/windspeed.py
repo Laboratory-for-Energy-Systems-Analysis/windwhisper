@@ -91,6 +91,7 @@ def _download_single_turbine_data(name, turbine):
             )
 
 
+
 def download_data(wind_turbines) -> xr.DataArray:
     print("Starting concurrent data download for all turbines...")
     total_download_size_kb = 0  # Initialize total download size
