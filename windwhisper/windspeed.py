@@ -6,6 +6,11 @@ import pandas as pd
 from pathlib import Path
 import requests
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 
 API_NEWA = os.getenv("API_NEWA")
 
@@ -33,7 +38,7 @@ def load_wind_speed_data(filepath_wind_speed: Path, filepath_correction: Path = 
         return wind_speed * correction
 
 
-def _download_single_turbine_data(turbine):
+def _download_single_turbine_data(name, turbine):
     """
     Downloads data for a single wind turbine, with retry logic in case of failure.
 
@@ -59,7 +64,7 @@ def _download_single_turbine_data(turbine):
                 size_kb = len(response.content) / 1024  # Calculate the size of the response in kilobytes
                 total_size_kb += size_kb  # Add the size of this response to the total
                 print(
-                    f"Downloaded {size_kb:.2f} kB for {turbine['name']}")  # Optional: Print the size for this turbine
+                    f"Downloaded {size_kb:.2f} kB for {name}")  # Optional: Print the size for this turbine
 
                 with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as tmp_file:
                     tmp_file.write(response.content)
@@ -73,16 +78,16 @@ def _download_single_turbine_data(turbine):
                 return ds_simplified, size_kb  # Return the simplified dataset
             else:
                 raise Exception(
-                    f"Error downloading data for {turbine['name']}. Status code: {response.status_code}"
+                    f"Error downloading data for {name}. Status code: {response.status_code}"
                 )
         except (Timeout, Exception) as e:
             attempts += 1
             if attempts >= max_attempts:
                 raise Exception(
-                    f"Failed to download data for {turbine['name']} after {max_attempts} attempts."
+                    f"Failed to download data for {name} after {max_attempts} attempts."
                 )
             print(
-                f"Retrying download for {turbine['name']} (Attempt {attempts}/{max_attempts})"
+                f"Retrying download for {name} (Attempt {attempts}/{max_attempts})"
             )
 
 
@@ -96,8 +101,8 @@ def download_data(wind_turbines) -> xr.DataArray:
     # Use ThreadPoolExecutor to download data concurrently
     with ThreadPoolExecutor(max_workers=1) as executor:
         # Create a future for each turbine
-        futures = {executor.submit(_download_single_turbine_data, turbine): turbine for turbine in
-                   wind_turbines}
+        futures = {executor.submit(_download_single_turbine_data, turbine, params): turbine for turbine, params in
+                   wind_turbines.items()}
 
         for future in as_completed(futures):
             # Get the turbine information
