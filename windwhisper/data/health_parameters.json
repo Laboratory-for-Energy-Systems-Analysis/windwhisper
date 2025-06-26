@@ -1,0 +1,105 @@
+{
+  "highly_annoyed": {
+    "road_without_alpinestudies": {
+      "a": 116.4304,
+      "b": -4.7342,
+      "c": 0.0497,
+      "disability_weight": 0.02
+    },
+    "road_with_alpinestudies": {
+      "a": 78.927,
+      "b": -3.1162,
+      "c": 0.0342,
+      "disability_weight": 0.02
+    },
+    "aircraft": {
+      "a": -50.9693,
+      "b": 1.0168,
+      "c": 0.0072,
+      "disability_weight": 0.02
+    },
+    "railway": {
+      "a": 38.1596,
+      "b": -2.0554,
+      "c": 0.0285,
+      "disability_weight": 0.02
+    }
+  },
+    "high_sleep_disorder": {
+    "combined": {
+      "a": 19.4312,
+      "b": -0.9336,
+      "c": 0.0126,
+      "disability_weight": 0.07
+    },
+    "awakenings": {
+      "a": 8.8986,
+      "b": -0.4209,
+      "c": 0.0065,
+      "disability_weight": 0.07
+    },
+    "falling_asleep": {
+      "a": 19.3767,
+      "b": -0.9263,
+      "c": 0.0122,
+      "disability_weight": 0.07
+    },
+    "upper estimates": {
+      "a": 28.064,
+      "b": -1.3442,
+      "c": 0.0181,
+      "disability_weight": 0.07
+    },
+    "lower estimates": {
+      "a": 10.717,
+      "b": -0.5326,
+      "c": 0.0072,
+      "disability_weight": 0.07
+    }
+  },
+  "ischemic_heart_disease": {
+    "road middle": {
+      "a": 1.080,
+      "threshold": 45
+
+    },
+    "road high": {
+      "a": 1.150,
+      "threshold": 45
+    },
+    "road low": {
+      "a": 1.010,
+      "threshold": 45
+    }
+  },
+    "diabetes": {
+    "road middle": {
+      "a": 1.110,
+      "threshold": 45
+
+    },
+    "road high": {
+      "a": 1.180,
+      "threshold": 45
+    },
+    "road low": {
+      "a": 1.040,
+      "threshold": 45
+    }
+  },
+      "stroke": {
+    "road middle": {
+      "a": 1.060,
+      "threshold": 45
+
+    },
+    "road high": {
+      "a": 1.080,
+      "threshold": 45
+    },
+    "road low": {
+      "a": 1.030,
+      "threshold": 45
+    }
+  }
+}

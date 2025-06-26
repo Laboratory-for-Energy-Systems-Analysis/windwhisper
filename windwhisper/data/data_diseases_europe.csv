@@ -1,0 +1,136 @@
+﻿disease;country;YLD;YLL
+ischemic_heart_disease;Albania;3093.860287;104344.2206
+ischemic_heart_disease;Andorra;56.80819643;1175.022777
+ischemic_heart_disease;Belgium;8214.148231;170852.0693
+ischemic_heart_disease;Bosnia and Herzegovina;4446.297069;154669.7207
+ischemic_heart_disease;Bulgaria;9024.282883;512874.4762
+ischemic_heart_disease;Denmark;4254.327252;82534.54296
+ischemic_heart_disease;Germany;84990.70461;2238669.313
+ischemic_heart_disease;Estonia;1589.987249;46061.17962
+ischemic_heart_disease;Finland;6176.860464;170818.0429
+ischemic_heart_disease;France;69464.75982;789872.9883
+ischemic_heart_disease;Greece;7524.322729;321792.6941
+ischemic_heart_disease;Ireland;3213.342097;77207.0865
+ischemic_heart_disease;Iceland;197.8933106;5847.734718
+ischemic_heart_disease;Israel;4914.273227;72523.73373
+ischemic_heart_disease;Italy;55451.07928;1154433.412
+ischemic_heart_disease;Croatia;6230.560414;189248.7423
+ischemic_heart_disease;Latvia;2808.816142;119972.4391
+ischemic_heart_disease;Lithuania;3982.256394;206586.3096
+ischemic_heart_disease;Luxembourg;444.7706775;8526.641821
+ischemic_heart_disease;Malta;454.6594496;11598.76369
+ischemic_heart_disease;North Macedonia;2351.509019;90617.35625
+ischemic_heart_disease;Moldova;3584.936485;255216.618
+ischemic_heart_disease;Monaco;38.5600817;868.0158091
+ischemic_heart_disease;Montenegro;841.6874609;32881.75797
+ischemic_heart_disease;Netherlands;13269.87825;216470.4485
+ischemic_heart_disease;Norway;3840.702314;70991.32748
+ischemic_heart_disease;Austria;9205.474918;226041.0881
+ischemic_heart_disease;Poland;60971.32504;1395735.855
+ischemic_heart_disease;Portugal;8668.737125;168685.8475
+ischemic_heart_disease;Romania;25232.33189;1037228.086
+ischemic_heart_disease;Russia;156062.7147;9682815.427
+ischemic_heart_disease;San Marino;27.53442067;429.4319441
+ischemic_heart_disease;Sweden;13893.90347;203810.2235
+ischemic_heart_disease;Switzerland;5733.250084;128206.1771
+ischemic_heart_disease;Serbia;12189.40742;478209.8771
+ischemic_heart_disease;Slovakia;7279.474434;283661.8821
+ischemic_heart_disease;Slovenia;3024.055993;37419.58532
+ischemic_heart_disease;Spain;32562.8023;669636.7809
+ischemic_heart_disease;Czech Republic;17943.36019;456359.8882
+ischemic_heart_disease;Ukraine;53381.43071;5174248.043
+ischemic_heart_disease;Hungary;12670.88968;567583.9652
+ischemic_heart_disease;United Kingdom;46392.95989;1251816.032
+ischemic_heart_disease;Belarus;12319.67675;985938.1728
+ischemic_heart_disease;Cyprus;748.9732748;25141.13627
+ischemic_heart_disease;European Region;910576.93;34918471.34
+diabetes;Albania;12956.91038;4070.083557
+diabetes;Andorra;429.9631725;259.0286822
+diabetes;Belgium;69214.0426;23261.50474
+diabetes;Bosnia and Herzegovina;37039.42576;39098.83605
+diabetes;Bulgaria;64497.82158;48624.63436
+diabetes;Denmark;22775.54785;21985.89326
+diabetes;Germany;440913.8521;334597.6946
+diabetes;Estonia;8075.29503;5872.841959
+diabetes;Finland;42663.91617;10112.71142
+diabetes;France;237104.9822;187794.3662
+diabetes;Greece;70972.21319;27607.88493
+diabetes;Ireland;19553.96196;6886.244038
+diabetes;Iceland;1502.105382;430.8953542
+diabetes;Israel;41492.78139;38311.6286
+diabetes;Italy;379009.4738;273045.0738
+diabetes;Croatia;35993.88828;25803.65201
+diabetes;Latvia;11986.20415;11648.20855
+diabetes;Lithuania;14412.64541;11366.28459
+diabetes;Luxembourg;2884.071682;1156.046788
+diabetes;Malta;3475.465876;2256.528948
+diabetes;North Macedonia;20745.35596;19974.10961
+diabetes;Moldova;22498.82036;13342.66605
+diabetes;Monaco;205.4152346;65.09607339
+diabetes;Montenegro;4957.321188;3668.777434
+diabetes;Netherlands;84929.8714;48206.86912
+diabetes;Norway;25380.02365;9945.32062
+diabetes;Austria;34709.54056;32373.01625
+diabetes;Poland;309332.2515;184334.8364
+diabetes;Portugal;97240.20069;56052.72074
+diabetes;Romania;109905.3971;54424.5903
+diabetes;Russia;750303.77;748071.327
+diabetes;San Marino;179.1613602;71.2163275
+diabetes;Sweden;52713.19825;30770.51073
+diabetes;Switzerland;66616.23511;17601.58345
+diabetes;Serbia;86803.63167;72916.51673
+diabetes;Slovakia;32647.11609;17444.50717
+diabetes;Slovenia;14141.32961;7155.632233
+diabetes;Spain;420113.148;125658.2605
+diabetes;Czech Republic;93587.67466;70878.21192
+diabetes;Ukraine;210617.1082;64588.57
+diabetes;Hungary;82414.84361;53225.78704
+diabetes;United Kingdom;438897.0049;103130.8884
+diabetes;Belarus;33302.12491;16163.57256
+diabetes;Cyprus;8115.460665;8255.747519
+diabetes;European Region;5740544.921;3698945.611
+stroke;Albania;5788.492879;90826.03279
+stroke;Andorra;122.7684061;546.3101918
+stroke;Belgium;21406.43513;111175.2621
+stroke;Bosnia and Herzegovina;12819.85713;119714.9729
+stroke;Bulgaria;29150.6316;461649.6442
+stroke;Denmark;11641.76477;59094.84046
+stroke;Germany;287070.3449;906028.5971
+stroke;Estonia;3325.893011;16646.62179
+stroke;Finland;19413.83019;65177.78039
+stroke;France;137389.6443;561377.1832
+stroke;Greece;27436.61404;215328.2233
+stroke;Ireland;5726.415223;28811.45657
+stroke;Iceland;601.5020002;1948.734827
+stroke;Israel;13097.51941;41581.90438
+stroke;Italy;105558.572;776878.7701
+stroke;Croatia;13249.97064;98665.56297
+stroke;Latvia;7599.722116;77221.24859
+stroke;Lithuania;12927.69962;72750.08373
+stroke;Luxembourg;717.0786851;4523.569316
+stroke;Malta;659.5878884;3577.021286
+stroke;North Macedonia;6997.534758;116599.5399
+stroke;Moldova;9581.535995;102593.1107
+stroke;Monaco;102.2659086;708.9876359
+stroke;Montenegro;1447.970958;31666.73453
+stroke;Netherlands;35930.00325;163788.4889
+stroke;Norway;12653.48558;37251.33531
+stroke;Austria;30172.13958;67915.72547
+stroke;Poland;86280.35662;722596.3769
+stroke;Portugal;17647.40592;188864.9582
+stroke;Romania;69021.15291;837773.3781
+stroke;Russia;430298.2782;5520303.126
+stroke;San Marino;72.60801677;372.1342974
+stroke;Sweden;25662.75348;91600.55614
+stroke;Switzerland;14548.84283;54108.99614
+stroke;Serbia;27138.13221;432745.9365
+stroke;Slovakia;20366.83098;106033.723
+stroke;Slovenia;4436.616978;25545.99105
+stroke;Spain;102075.234;433402.6162
+stroke;Czech Republic;34380.97945;147332.6144
+stroke;Ukraine;158494.0284;1515000.155
+stroke;Hungary;29930.13732;203325.8323
+stroke;United Kingdom;127978.19;578618.4469
+stroke;Belarus;33405.9814;288863.4514
+stroke;Cyprus;1289.344343;10842.95924
+stroke;European Region;2334866.753;17901413.64
