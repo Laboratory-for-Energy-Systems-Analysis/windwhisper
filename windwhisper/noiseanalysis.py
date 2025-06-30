@@ -24,38 +24,24 @@ class NoiseAnalysis:
     ):
         self.noise_propagation = noise_propagation
         self.wind_turbines = wind_turbines
-        self.lden_map = noise_propagation.lden_map
-
-        lon_min = self.noise_propagation.hourly_noise_levels.coords["lon"].min().values.item()
-        lon_max = self.noise_propagation.hourly_noise_levels.coords["lon"].max().values.item()
-        lat_min = self.noise_propagation.hourly_noise_levels.coords["lat"].min().values.item()
-        lat_max = self.noise_propagation.hourly_noise_levels.coords["lat"].max().values.item()
+        self.l_den = noise_propagation.l_den
+        self.l_night = noise_propagation.l_night
 
         self.ambient_noise_map = get_ambient_noise_levels(
             latitudes=self.noise_propagation.LAT,
             longitudes=self.noise_propagation.LON,
-            resolution=self.lden_map.shape
+            resolution=self.l_den.shape
         )
 
-        #self.settlement_map = get_wsf_map_preview(
-        #    lon_min=lon_min,
-        #    lon_max=lon_max,
-        #    lat_min=lat_min,
-        #    lat_max=lat_max,
-        #    resolution=self.lden_map.shape
-        #)
-        self.settlement_map = None
 
         self.merged_map = self.merge_maps()
-
-
 
     def merge_maps(self):
         """
         Merge the ambient noise, Lden, and settlement maps into a single xarray dataset.
         """
 
-        lon, lat = self.lden_map.lon, self.lden_map.lat
+        lon, lat = self.l_den.lon, self.l_den.lat
 
         # reinterpolate the ambient noise map to match the shape of the lden map
         self.ambient_noise_map = self.ambient_noise_map.interp(
@@ -92,8 +78,8 @@ class NoiseAnalysis:
             noise_combined,
             dims=["lat", "lon"],
             coords={
-                "lat": self.lden_map.lat,
-                "lon": self.lden_map.lon,
+                "lat": self.l_den.lat,
+                "lon": self.l_den.lon,
             }
         )
 
@@ -111,8 +97,8 @@ class NoiseAnalysis:
             net_contribution,
             dims=["lat", "lon"],
             coords={
-                "lat": self.lden_map.coords["lat"],
-                "lon": self.lden_map.coords["lon"],
+                "lat": self.l_den.coords["lat"],
+                "lon": self.l_den.coords["lon"],
             }
         )
         merged_dataset["net"].attrs["description"] = "Net contribution of LDEN noise levels in dB"
@@ -125,8 +111,8 @@ class NoiseAnalysis:
             flip,
             dims=["lat", "lon"],
             coords={
-                "lat": self.lden_map.coords["lat"],
-                "lon": self.lden_map.coords["lon"],
+                "lat": self.l_den.coords["lat"],
+                "lon": self.l_den.coords["lon"],
             }
         )
 

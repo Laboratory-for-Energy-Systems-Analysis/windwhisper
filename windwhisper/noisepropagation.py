@@ -84,8 +84,6 @@ class NoisePropagation:
         self.wind_turbines = wind_turbines
         self.LAT, self.LON = define_bounding_box(wind_turbines)
         self.elevation_data = elevation_data
-
-
         self.calculate_noise_attenuation_terms()
 
         self.noise_level_at_wind_speeds = self.get_noise_emissions_vs_time_or_speed(
@@ -112,7 +110,8 @@ class NoisePropagation:
             coord_value=[specs["noise_per_hour"].coords["hour"].values for specs in self.wind_turbines.values()][0],
         )
 
-        self.lden_map = self.compute_lden()
+        self.lden = self.compute_lden()
+        self.l_night = self.compute_lnight()
 
         self.calculate_incremental_noise_attenuation()
 
@@ -180,6 +179,29 @@ class NoisePropagation:
 
         return lden_map
 
+    def compute_lnight(self):
+        """
+        Compute Lnight values from self.hourly_noise_levels and update the DataArray.
+
+        Returns:
+            xr.DataArray: Updated DataArray containing Lnight values.
+        """
+        noise = self.hourly_noise_levels  # Noise levels as DataArray
+
+        # Define night time mask: 23:00–07:00
+        night_mask = (noise["hour"] >= 23) | (noise["hour"] < 7)
+
+        # Convert to linear scale, compute mean, then convert back to dB
+        night_linear = 10 ** (noise.where(night_mask).mean(dim="hour") / 10)
+        lnight = 10 * np.log10(night_linear)
+
+        # Create DataArray with Lnight values
+        lnight_map = noise.sel(hour=0).copy(data=lnight)
+        lnight_map.attrs["long_name"] = "Lnight Noise Levels"
+        lnight_map.attrs["units"] = "dB"
+
+        return lnight_map
+
     def calculate_incremental_noise_attenuation(self):
         """
         Calculates an Xarray Dataset that incrementally applies attenuation terms
@@ -200,10 +222,10 @@ class NoisePropagation:
         }
 
         # Start with the initial noise level in linear scale
-        incremental_noise_linear = 10 ** (self.lden_map / 10)
+        incremental_noise_linear = 10 ** (self.lden / 10)
 
         # Create a dataset to store the incremental noise levels
-        attenuation_dataset = xr.Dataset({"noise": self.lden_map.copy()})
+        attenuation_dataset = xr.Dataset({"noise": self.lden.copy()})
 
         # Initialize cumulative attenuation in linear scale
         cumulative_attenuation_linear = xr.ones_like(incremental_noise_linear)
