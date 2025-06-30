@@ -2,63 +2,39 @@
 Fetch layer representing human settlements.
 """
 
-import requests
-from rasterio.io import MemoryFile
+import rioxarray
+import pyproj
+from shapely.geometry import box
+from shapely.ops import transform
 import xarray as xr
-import numpy as np
-import os
-from dotenv import load_dotenv
+from . import DATA_DIR
 
-load_dotenv()
+import xarray as xr
 
-WMS_BASE_URL = os.getenv("API_WSF")
 
-# Function to query WMS for a map preview
-def get_wsf_map_preview(lon_min, lon_max, lat_min, lat_max, resolution, layers="WSF_2019"):
+def get_population_subset(bbox: box):
     """
-    Fetch a map preview of the World Settlement Footprint (WSF) dataset.
+    Fast version for EPSG:4326 (lat/lon) NetCDF: slices lat/lon bounding box directly.
+
+    Parameters:
+        lat_min, lat_max, lon_min, lon_max (float): Bounding box in degrees
+
+    Returns:
+        xarray.DataArray: Subset of population data within the bounding box
     """
 
-    width, height = resolution[1], resolution[0]
+    lon_min, lat_min, lon_max, lat_max = bbox.bounds
 
-    bbox=f"{lon_min},{lat_min},{lon_max},{lat_max}"
+    filepath = DATA_DIR / "GHS_POP_E2030_Europe.nc"
 
-    params = {
-        "service": "WMS",
-        "request": "GetMap",
-        "layers": layers,
-        "bbox": bbox,
-        "width": width,
-        "height": height,
-        "srs": "EPSG:4326",
-        "crs": "EPSG:4326",
-        "format": "image/png",
-    }
+    # Open NetCDF lazily
+    da = xr.open_dataset(filepath)["population"]
 
-    response = requests.get(WMS_BASE_URL, params=params)
-    if response.status_code == 200:
-        # Use a memory file to avoid saving to disk
-        with MemoryFile(response.content) as memfile:
-            with memfile.open() as dataset:
-                # Read the first band of data
-                data = dataset.read(1)
-                data = (data > 0).astype("uint8")  # Convert to binary (1 = settlement, 0 = no settlement)
+    # Make sure latitude is decreasing (common in raster data)
+    lat0, lat1 = sorted([lat_min, lat_max], reverse=True)
+    lon0, lon1 = sorted([lon_min, lon_max])
 
-                # Generate latitude and longitude arrays based on bbox
-                lat = np.linspace(lat_min, lat_max, height)
-                lon = np.linspace(lon_min, lon_max, width)
+    # Slice using .sel() on lat/lon
+    subset = da.sel(lat=slice(lat0, lat1), lon=slice(lon0, lon1))
 
-                return xr.DataArray(
-                    data,
-                    dims=["lat", "lon", ],
-                    coords={
-                        "lat": lat,
-                        "lon": lon,
-                    },
-                    attrs={
-                        "crs": "EPSG:4326",
-                        "long_name": "World Settlement Footprint",
-                        "units": "boolean",
-                        "bbox": f"{lon_min},{lat_min},{lon_max},{lat_max}",
-                    }
-                )
+    return subset

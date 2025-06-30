@@ -25,7 +25,7 @@
       "disability_weight": 0.02
     }
   },
-    "high_sleep_disorder": {
+  "high_sleep_disorder": {
     "combined": {
       "a": 19.4312,
       "b": -0.9336,
@@ -87,11 +87,10 @@
       "threshold": 45
     }
   },
-      "stroke": {
+  "stroke": {
     "road middle": {
       "a": 1.060,
       "threshold": 45
-
     },
     "road high": {
       "a": 1.080,

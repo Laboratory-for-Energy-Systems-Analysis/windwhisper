@@ -72,9 +72,6 @@ def get_elevation_grid(
                 for d in elevations
             ])
 
-            print(url)
-            print(response)
-
             # Create a pivot table to reshape the data into a grid
             grid = df.pivot(index='lat', columns='lon', values='elevation')
 
@@ -113,10 +110,6 @@ def get_elevation_grid(
         interpolated_ds = elevation_data.interp(new_coords, method="linear", assume_sorted=is_sorted)
 
         return interpolated_ds.to_array().squeeze()
-
-
-import numpy as np
-import xarray as xr
 
 
 def distances_with_elevation(distances, relative_elevations):

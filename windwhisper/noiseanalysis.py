@@ -4,7 +4,6 @@ from geojson import FeatureCollection
 from typing import Any
 
 from .ambient_noise import get_ambient_noise_levels
-from .settlement import get_wsf_map_preview
 from .plotting import generate_map, create_geojson
 
 
@@ -49,22 +48,11 @@ class NoiseAnalysis:
             lat=lat
         ).fillna(0)
 
-        if self.settlement_map:
-            # re-interpolate the settlement map to match the shape of the lden map
-            self.settlement_map = self.settlement_map.interp(
-                lon=lon,
-                lat=lat
-            ).fillna(0)
-
         # Combine the two datasets into a single xarray
         merged_dataset = xr.Dataset({
             "ambient": self.ambient_noise_map,
             "wind": self.noise_propagation.incr_noise_att["noise-distance-atmospheric-ground-obstacle"],
-            #"settlement": self.settlement_map,
         })
-
-        if self.settlement_map:
-            merged_dataset["settlement"] = self.settlement_map
 
         # Calculate the combined noise level (in dB)
         # using the logarithmic formula

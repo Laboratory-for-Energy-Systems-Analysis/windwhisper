@@ -110,7 +110,7 @@ class NoisePropagation:
             coord_value=[specs["noise_per_hour"].coords["hour"].values for specs in self.wind_turbines.values()][0],
         )
 
-        self.lden = self.compute_lden()
+        self.l_den = self.compute_lden()
         self.l_night = self.compute_lnight()
 
         self.calculate_incremental_noise_attenuation()
@@ -222,10 +222,10 @@ class NoisePropagation:
         }
 
         # Start with the initial noise level in linear scale
-        incremental_noise_linear = 10 ** (self.lden / 10)
+        incremental_noise_linear = 10 ** (self.l_den / 10)
 
         # Create a dataset to store the incremental noise levels
-        attenuation_dataset = xr.Dataset({"noise": self.lden.copy()})
+        attenuation_dataset = xr.Dataset({"noise": self.l_den.copy()})
 
         # Initialize cumulative attenuation in linear scale
         cumulative_attenuation_linear = xr.ones_like(incremental_noise_linear)

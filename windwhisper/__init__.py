@@ -8,6 +8,7 @@ __all__ = (
     "WindSpeed",
     "NoisePropagation",
     "NoiseAnalysis",
+    "HumanHealth"
 )
 
 HOME_DIR = Path(__file__).resolve().parent.parent
@@ -18,3 +19,4 @@ from .windturbines import WindTurbines
 from .windspeed import WindSpeed
 from .noisepropagation import NoisePropagation
 from .noiseanalysis import NoiseAnalysis
+from .health_impacts import HumanHealth

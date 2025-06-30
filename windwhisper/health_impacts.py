@@ -1,48 +1,95 @@
 import math
 import json
+from typing import Any
+
 import pandas as pd
 import numpy as np
 import xarray as xr
+import geopandas as gpd
+from shapely.geometry import box
+
+from . import DATA_DIR
+from .settlement import get_population_subset
+from .noiseanalysis import NoiseAnalysis
 
 
 def load_human_health_parameters() -> dict:
     """
     Load human health parameters from a JSON file.
     """
-    with open("data/human_health_parameters.json", "r") as f:
+    with open(DATA_DIR / "health_parameters.json", "r") as f:
         return json.load(f)
 
-def load_disease_data() -> pd.DataFrame:
-    return pd.read_csv("data/data_diseases_europe.csv", sep=";")
+def load_disease_data(country) -> Any | None:
+    df = pd.read_csv(DATA_DIR / "data_diseases_europe.csv", sep=",")
+    if country in df["country_short"].unique():
+        return df.loc[df["country_short"] == country, :]
+    else:
+        print(
+            f"No data available for country {country}. "
+            f"Falling back to Europe"
+        )
+        return df.loc[df["country_long"] == "European Region", :]
 
-def load_population_data() -> pd.DataFrame:
-    return pd.read_csv("data/Population_data.csv", sep=";")
 
 
-
-def get_population_totals(country: str) -> float:
+def guess_country(bbox_geom) -> tuple[str, float]:
     """
-    Returns the total population for a given country.
-    :return: Total population for the specified country.
-    :raises ValueError: If no population data is found for the specified country.
+    Returns the country (ISO_A2 code, POP_EST) corresponding to the bounding box geometry.
     """
-    population = load_population_data()
-    row = population.loc[(population["country"].str.lower() == country)]
+    # Load world polygons
+    world = gpd.read_file(DATA_DIR / "ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp")
+    world = world.to_crs("EPSG:4326")  # Ensure CRS match
 
-    if row.empty:
-        raise ValueError(f"No data found for population in {country}")
-    return float(row["population"].values[0])
+    # Clean geometries if needed
+    world["geometry"] = world["geometry"].buffer(0)
+
+    # Wrap bbox into a GeoDataFrame
+    bbox_gdf = gpd.GeoDataFrame(geometry=[bbox_geom.buffer(1e-4)], crs="EPSG:4326")
+
+    # Compute intersection
+    intersecting = gpd.overlay(world, bbox_gdf, how="intersection")
+
+    # Skip if no matches
+    if intersecting.empty:
+        print("intersecting.empty")
+        return "-99", 0
+
+    # Reproject to compute area
+    intersecting_proj = intersecting.to_crs("EPSG:3035")
+    intersecting["area"] = intersecting_proj.geometry.area
+
+    # Get largest intersection
+    country = intersecting.sort_values("area", ascending=False).iloc[0]
+
+    return country.get("ISO_A2_EH"), country.get("POP_EST", 0)
 
 
-class HumanHealth():
-    def __init__(self, country: str, l_den: xr.DataArray , l_night: xr.DataArray, lifetime : int = 20):
-        self.country = country.lower()
-        self.l_den = l_den
-        self.l_night = l_night
+class HumanHealth:
+    def __init__(self, noiseanalysis: NoiseAnalysis, lifetime : int = 20):
+        self.l_den = noiseanalysis.l_den
+        self.l_night = noiseanalysis.l_night
         self.lifetime = lifetime
-        self.disease_data = load_disease_data()
-        self.population = get_population_totals()
+
+        bbox = box(
+            float(noiseanalysis.ambient_noise_map.coords["lon"].min()),
+            float(noiseanalysis.ambient_noise_map.coords["lat"].min()),
+            float(noiseanalysis.ambient_noise_map.coords["lon"].max()),
+            float(noiseanalysis.ambient_noise_map.coords["lat"].max()),
+        )
+
+        self.population = get_population_subset(bbox).interp(
+            lat=self.l_den.lat,
+            lon=self.l_den.lon,
+            method="linear"
+        )
+
+        self.country, self.country_population = guess_country(bbox)
+        self.disease_data = load_disease_data(self.country)
         self.human_health_parameters = load_human_health_parameters()
+        self.population_rate = self.population / self.country_population
+        self.human_health = None
+        self.calculate_total_dalys()
 
 
     def get_disease_totals(
@@ -56,24 +103,20 @@ class HumanHealth():
         :raises ValueError: If no data is found for the specified disease in the country.
         """
         row = self.disease_data.loc[
-            (self.disease_data["country"].str.lower() == self.country)
-            & (self.disease_data["disease"].str.lower() == disease.lower())
+            self.disease_data["disease"].str.lower() == disease.lower()
         ]
         if row.empty:
             raise ValueError(f"No data found for {disease} in {self.country}")
-        return float(row["yld"].values[0]), float(row["yll"].values[0])
-
+        return float(row["YLD"].values[0]), float(row["YLL"].values[0])
 
 
     def calculate_highly_annoyed_dalys(
         self,
-        exposed_individuals: np.ndarray,
         noise_type_ha: str
     ) -> np.ndarray:
         """
         Calculate the Disability-Adjusted Life Years (DALYs) for highly annoyed individuals
         based on the noise level (Lden) and the number of exposed individuals.
-        :param exposed_individuals: Number of individuals exposed to noise.
         :param lden: Noise level in Lden (day-evening-night noise level).
         :param noise_type_ha: Type of noise (e.g., "road_without_alpinestudies", "combined").
         :return: DALYs for highly annoyed individuals.
@@ -84,23 +127,22 @@ class HumanHealth():
         c = p["c"]
         disability_weight = p["disability_weight"]
         percentage_affected = a + b * self.l_den + c * (self.l_den ** 2)
-        affected = exposed_individuals * (percentage_affected / 100)
+        affected = self.population * (percentage_affected / 100)
         yld = affected * disability_weight
         dalys_per_year = yld
         dalys = dalys_per_year * self.lifetime
+
         return dalys
 
 
     # 2. High Sleep Disorder
     def calculate_high_sleep_disorder_dalys(
         self,
-        exposed_individuals: np.ndarray,
         noise_type_hsd: str
     )-> np.ndarray:
         """
         Calculate the Disability-Adjusted Life Years (DALYs) for high sleep disorder
         based on the noise level (Lnight) and the number of exposed individuals.
-        :param exposed_individuals: Number of individuals exposed to noise.
         :param lnight: Noise level in Lnight (night noise level).
         :param noise_type_hsd: Type of noise (e.g., "combined", "road_without_alpinestudies").
         :return: DALYs for high sleep disorder.
@@ -111,23 +153,22 @@ class HumanHealth():
         c = p["c"]
         disability_weight = p["disability_weight"]
         percentage_affected = a + b * self.l_night + c * (self.l_night ** 2)
-        affected = exposed_individuals * (percentage_affected / 100)
+        affected = self.population * (percentage_affected / 100)
         yld = affected * disability_weight
         dalys_per_year = yld
         dalys = dalys_per_year * self.lifetime
+
         return dalys
 
 
     # 3. Ischemic Heart Disease (IHD)
     def calculate_ihd_dalys(
         self,
-        exposed_individuals: np.ndarray,
         noise_type: str,
     ) -> np.ndarray:
         """
         Calculate the Disability-Adjusted Life Years (DALYs) for ischemic heart disease
         based on the noise level (Lden) and the number of exposed individuals.
-        :param exposed_individuals: Number of individuals exposed to noise.
         :param lden: Noise level in Lden (day-evening-night noise level).
         :param noise_type: Type of noise (e.g., "road middle", "railway").
         :return: DALYs for ischemic heart disease.
@@ -136,17 +177,20 @@ class HumanHealth():
         rr_per_10db = p["a"]
         threshold = p["threshold"]
 
-        if self.l_den < threshold:
-            return 0.0
-
-        population_rate = exposed_individuals / self.population
-        rr = math.exp((math.log(rr_per_10db) / 10) * (self.l_den - threshold))
-        paf = population_rate * (rr - 1) / (population_rate * (rr - 1) + 1)
+        rr = np.exp((np.log(rr_per_10db) / 10) * (self.l_den - threshold))
+        paf = self.population_rate * (rr - 1) / (self.population_rate * (rr - 1) + 1)
         yld_total, yll_total = self.get_disease_totals("ischemic_heart_disease")
         yld_noise = yld_total * paf
         yll_noise = yll_total * paf
         dalys_per_year = yld_noise + yll_noise
         dalys = dalys_per_year * self.lifetime
+
+        # zero DALYs were value below threshold
+        dalys = xr.where(
+            self.l_den >= threshold,
+            dalys,
+            0
+        )
 
         return dalys
 
@@ -154,13 +198,11 @@ class HumanHealth():
     # 4. Diabetes
     def calculate_diabetes_dalys(
         self,
-        exposed_individuals: np.ndarray,
         noise_type: str,
     ) -> np.ndarray:
         """
         Calculate the Disability-Adjusted Life Years (DALYs) for diabetes
         based on the noise level (Lden) and the number of exposed individuals.
-        :param exposed_individuals: Number of individuals exposed to noise.
         :param lden: Noise level in Lden (day-evening-night noise level).
         :param noise_type: Type of noise (e.g., "road middle", "railway").
         :return: DALYs for diabetes.
@@ -169,30 +211,31 @@ class HumanHealth():
         rr_per_10db = p["a"]
         threshold = p["threshold"]
 
-        if self.l_den < threshold:
-            return 0.0
-
-        population_rate = exposed_individuals / self.population
-        rr = math.exp((math.log(rr_per_10db) / 10) * (self.l_den - threshold))
-        paf = population_rate * (rr - 1) / (population_rate * (rr - 1) + 1)
+        rr = np.exp((np.log(rr_per_10db) / 10) * (self.l_den - threshold))
+        paf = self.population_rate * (rr - 1) / (self.population_rate * (rr - 1) + 1)
         yld_total, yll_total = self.get_disease_totals("diabetes")
         yld_noise = yld_total * paf
         yll_noise = yll_total * paf
         dalys_per_year = yld_noise + yll_noise
         dalys = dalys_per_year * self.lifetime
+
+        # zero DALYs were value below threshold
+        dalys = xr.where(
+            self.l_den >= threshold,
+            dalys,
+            0
+        )
+
         return dalys
 
 
-    # 5. Stroke
     def calculate_stroke_dalys(
             self,
-            exposed_individuals: np.ndarray,
             noise_type: str,
     ):
         """
         Calculate the Disability-Adjusted Life Years (DALYs) for stroke
         based on the noise level (Lden) and the number of exposed individuals.
-        :param exposed_individuals: Number of individuals exposed to noise.
         :param lden: Noise level in Lden (day-evening-night noise level).
         :param noise_type: Type of noise (e.g., "road middle", "railway").
         :return: DALYs for stroke.
@@ -201,26 +244,29 @@ class HumanHealth():
         rr_per_10db = p["a"]
         threshold = p["threshold"]
 
-        if self.l_den < threshold:
-            return 0.0
-
-        population_rate = exposed_individuals / self.population
-        rr = math.exp((math.log(rr_per_10db) / 10) * (self.l_den - threshold))
-        paf = population_rate * (rr - 1) / (population_rate * (rr - 1) + 1)
+        rr = np.exp((np.log(rr_per_10db) / 10) * (self.l_den - threshold))
+        paf = self.population_rate * (rr - 1) / (self.population_rate * (rr - 1) + 1)
         yld_total, yll_total = self.get_disease_totals("stroke")
         yld_noise = yld_total * paf
         yll_noise = yll_total * paf
         dalys_per_year = yld_noise + yll_noise
         dalys = dalys_per_year * self.lifetime
+
+        # zero DALYs were value below threshold
+        dalys = xr.where(
+            self.l_den >= threshold,
+            dalys,
+            0
+        )
+
         return dalys
 
 
     def calculate_total_dalys(
         self,
-        exposed_individuals: np.ndarray,
-        noise_type_ha: str,
-        noise_type_hsd: str,
-        noise_type: str,
+        noise_type_ha: str = "road_without_alpinestudies",
+        noise_type_hsd: str = "combined",
+        noise_type: str = "road middle",
     ):
         """
         Calculate the total Disability-Adjusted Life Years (DALYs) for all health impacts
@@ -231,32 +277,23 @@ class HumanHealth():
         :param noise_type: Type of noise for ischemic heart disease, diabetes, and stroke (e.g., "road middle", "railway").
         :return: Total DALYs for all health impacts.
         """
-        dalys_ha = self.calculate_highly_annoyed_dalys(
-            exposed_individuals, noise_type_ha
-        )
-        dalys_hsd = self.calculate_high_sleep_disorder_dalys(
-            exposed_individuals, noise_type_hsd
-        )
-        dalys_ihd = self.calculate_ihd_dalys(
-            exposed_individuals, noise_type
-        )
-        dalys_diabetes = self.calculate_diabetes_dalys(
-            exposed_individuals, noise_type
-        )
-        dalys_stroke = self.calculate_stroke_dalys(
-            exposed_individuals, noise_type
-        )
-        total_dalys = dalys_ha + dalys_hsd + dalys_ihd + dalys_diabetes + dalys_stroke
+        dalys_ha = self.calculate_highly_annoyed_dalys(noise_type_ha)
+        dalys_hsd = self.calculate_high_sleep_disorder_dalys(noise_type_hsd)
+        dalys_ihd = self.calculate_ihd_dalys(noise_type)
+        dalys_diabetes = self.calculate_diabetes_dalys(noise_type)
+        dalys_stroke = self.calculate_stroke_dalys(noise_type)
 
-        return total_dalys
+        ds = xr.Dataset(
+            {
+                "highly_annoyed": dalys_ha,
+                "high_sleep_disorder": dalys_hsd,
+                "ischemic_heart_disease": dalys_ihd,
+                "diabetes": dalys_diabetes,
+                "stroke": dalys_stroke,
+            }
+        )
 
+        # replace NaNs with zeroe
+        ds = ds.fillna(0)
 
-# if __name__ == "__main__":
-#     country = "European Region"
-#     lden = 50
-#     lnight = 50
-#     noise_type_ha = "road_without_alpinestudies"
-#     noise_type_hsd = "combined"
-#     noise_type = "road middle"
-#     exposed = 20000
-#     lifetime = 20
+        self.human_health = ds
