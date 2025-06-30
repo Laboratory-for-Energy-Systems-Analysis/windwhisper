@@ -113,7 +113,9 @@ class NoisePropagation:
         self.l_den = self.compute_lden()
         self.l_night = self.compute_lnight()
 
-        self.calculate_incremental_noise_attenuation()
+        # Store the dataset as a class attribute
+        self.incr_noise_att = self.calculate_incremental_noise_attenuation(self.l_den)
+        self.incr_noise_att_night = self.calculate_incremental_noise_attenuation(self.l_night)
 
 
     def calculate_hourly_noise_levels(self):
@@ -202,7 +204,7 @@ class NoisePropagation:
 
         return lnight_map
 
-    def calculate_incremental_noise_attenuation(self):
+    def calculate_incremental_noise_attenuation(self, noise):
         """
         Calculates an Xarray Dataset that incrementally applies attenuation terms
         to the noise emission and stores it as an attribute in the class.
@@ -222,10 +224,10 @@ class NoisePropagation:
         }
 
         # Start with the initial noise level in linear scale
-        incremental_noise_linear = 10 ** (self.l_den / 10)
+        incremental_noise_linear = 10 ** (noise / 10)
 
         # Create a dataset to store the incremental noise levels
-        attenuation_dataset = xr.Dataset({"noise": self.l_den.copy()})
+        attenuation_dataset = xr.Dataset({"noise": noise.copy()})
 
         # Initialize cumulative attenuation in linear scale
         cumulative_attenuation_linear = xr.ones_like(incremental_noise_linear)
@@ -252,8 +254,8 @@ class NoisePropagation:
                 # Add the resulting noise level to the dataset
                 attenuation_dataset[label] = incremental_noise
 
-        # Store the dataset as a class attribute
-        self.incr_noise_att = attenuation_dataset
+        return attenuation_dataset
+
 
     def get_noise_emissions_vs_time_or_speed(self, noise, coord_name, coord_value) -> xr.DataArray:
         """

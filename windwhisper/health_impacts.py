@@ -67,8 +67,8 @@ def guess_country(bbox_geom) -> tuple[str, float]:
 
 class HumanHealth:
     def __init__(self, noiseanalysis: NoiseAnalysis, lifetime : int = 20):
-        self.l_den = noiseanalysis.l_den
-        self.l_night = noiseanalysis.l_night
+        self.l_den = noiseanalysis.merged_map["combined"]
+        self.l_night = noiseanalysis.merged_map_night["combined"]
         self.lifetime = lifetime
 
         bbox = box(
@@ -297,3 +297,52 @@ class HumanHealth:
         ds = ds.fillna(0)
 
         self.human_health = ds
+
+    def export_to_excel(self, filepath: str = "human_health_results.xlsx") -> None:
+        """
+        Export summary and raster data to an Excel file with multiple sheets:
+        - Sheet 1: Metadata (country, population, disease data, parameters)
+        - Sheet 2: L_den (100x100)
+        - Sheet 3: L_night (100x100)
+        - Sheet 4+: DALY layers (100x100 per disease cause)
+        """
+        with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+            # --- Sheet 1: Metadata summary ---
+            metadata = {
+                "Country": [self.country],
+                "Estimated population": [self.country_population],
+            }
+            pd.DataFrame(metadata).to_excel(writer, sheet_name="summary", index=False)
+
+            # Append disease data (flattened)
+            disease_flat = self.disease_data.reset_index(drop=True)
+            disease_flat.to_excel(writer, sheet_name="summary", startrow=4, index=False)
+
+            # Append health parameters (flattened JSON)
+            hp_flat = pd.json_normalize(self.human_health_parameters, sep="_")
+            hp_flat.T.reset_index().rename(columns={"index": "parameter", 0: "value"}) \
+                .to_excel(writer, sheet_name="summary", startrow=6 + len(disease_flat), index=False)
+
+            # --- Sheet 2: L_den ---
+            df_ld = pd.DataFrame(self.l_den.values, index=self.l_den.lat.values, columns=self.l_den.lon.values)
+            df_ld.to_excel(writer, sheet_name="L_den")
+
+            # --- Sheet 3: L_night ---
+            df_ln = pd.DataFrame(self.l_night.values, index=self.l_night.lat.values, columns=self.l_night.lon.values)
+            df_ln.to_excel(writer, sheet_name="L_night")
+
+            # --- Sheets 4+: DALYs per impact ---
+            for varname in self.human_health.data_vars:
+                data = self.human_health[varname].values
+                df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
+                # Sheet names must be ≤ 31 chars
+                safe_name = varname[:31]
+                df.to_excel(writer, sheet_name=safe_name)
+
+            # --- Final Sheet: Total DALYs (sum of all layers) ---
+            total_dalys = self.human_health.to_array(dim='cause').sum(dim='cause')
+            df_total = pd.DataFrame(total_dalys.values, index=self.human_health.lat.values,
+                                    columns=self.human_health.lon.values)
+            df_total.to_excel(writer, sheet_name="Total_DALYs")
+
+

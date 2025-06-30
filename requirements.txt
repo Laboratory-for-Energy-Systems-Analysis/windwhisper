@@ -19,3 +19,4 @@ geojson
 pyyaml
 rasterio
 pyproj
+openpyxl

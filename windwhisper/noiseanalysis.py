@@ -33,14 +33,14 @@ class NoiseAnalysis:
         )
 
 
-        self.merged_map = self.merge_maps()
+        self.merged_map, self.merged_map_night = self.merge_maps(self.l_den)
 
-    def merge_maps(self):
+    def merge_maps(self, noise):
         """
         Merge the ambient noise, Lden, and settlement maps into a single xarray dataset.
         """
 
-        lon, lat = self.l_den.lon, self.l_den.lat
+        lon, lat = noise.lon, noise.lat
 
         # reinterpolate the ambient noise map to match the shape of the lden map
         self.ambient_noise_map = self.ambient_noise_map.interp(
@@ -54,6 +54,11 @@ class NoiseAnalysis:
             "wind": self.noise_propagation.incr_noise_att["noise-distance-atmospheric-ground-obstacle"],
         })
 
+        merged_dataset_night = xr.Dataset({
+            "ambient": self.ambient_noise_map,
+            "wind": self.noise_propagation.incr_noise_att_night["noise-distance-atmospheric-ground-obstacle"],
+        })
+
         # Calculate the combined noise level (in dB)
         # using the logarithmic formula
         noise_combined = 10 * np.log10(
@@ -61,13 +66,27 @@ class NoiseAnalysis:
             + 10 ** (self.noise_propagation.incr_noise_att["noise-distance-atmospheric-ground-obstacle"].values / 10)
         )
 
+        noise_combined_night = 10 * np.log10(
+            10 ** (self.ambient_noise_map.values / 10)
+            + 10 ** (self.noise_propagation.incr_noise_att_night["noise-distance-atmospheric-ground-obstacle"].values / 10)
+        )
+
         # Add the new layer to the dataset
         merged_dataset["combined"] = xr.DataArray(
             noise_combined,
             dims=["lat", "lon"],
             coords={
-                "lat": self.l_den.lat,
-                "lon": self.l_den.lon,
+                "lat": noise.lat,
+                "lon": noise.lon,
+            }
+        )
+
+        merged_dataset_night["combined"] = xr.DataArray(
+            noise_combined_night,
+            dims=["lat", "lon"],
+            coords={
+                "lat": noise.lat,
+                "lon": noise.lon,
             }
         )
 
@@ -75,9 +94,16 @@ class NoiseAnalysis:
         merged_dataset["combined"].attrs["description"] = "Combined noise levels (ambient + LDEN) in dB"
         merged_dataset["combined"].attrs["units"] = "dB"
 
+        merged_dataset_night["combined"].attrs["description"] = "Combined noise levels (ambient + LDEN) in dB"
+        merged_dataset_night["combined"].attrs["units"] = "dB"
+
         # Calculate the net contribution of lden_noise to the combined noise level
         net_contribution = 10 * np.log10(
             10 ** (noise_combined / 10) / 10 ** (self.ambient_noise_map.values / 10)
+        )
+
+        net_contribution_night = 10 * np.log10(
+            10 ** (noise_combined_night / 10) / 10 ** (self.ambient_noise_map.values / 10)
         )
 
         # Add the net contribution layer to the dataset
@@ -85,11 +111,21 @@ class NoiseAnalysis:
             net_contribution,
             dims=["lat", "lon"],
             coords={
-                "lat": self.l_den.coords["lat"],
-                "lon": self.l_den.coords["lon"],
+                "lat": noise.coords["lat"],
+                "lon": noise.coords["lon"],
             }
         )
         merged_dataset["net"].attrs["description"] = "Net contribution of LDEN noise levels in dB"
+
+        merged_dataset_night["net"] = xr.DataArray(
+            net_contribution_night,
+            dims=["lat", "lon"],
+            coords={
+                "lat": noise.coords["lat"],
+                "lon": noise.coords["lon"],
+            }
+        )
+        merged_dataset_night["net"].attrs["description"] = "Net contribution of LDEN noise levels in dB, at night"
 
         mask = (self.ambient_noise_map.values < 55) & (noise_combined >= 55)
         flip = np.where(mask, noise_combined, 0)
@@ -99,8 +135,8 @@ class NoiseAnalysis:
             flip,
             dims=["lat", "lon"],
             coords={
-                "lat": self.l_den.coords["lat"],
-                "lon": self.l_den.coords["lon"],
+                "lat": noise.coords["lat"],
+                "lon": noise.coords["lon"],
             }
         )
 
@@ -110,7 +146,26 @@ class NoiseAnalysis:
         )
         merged_dataset["flip"].attrs["datatype"] = "boolean"
 
-        return merged_dataset
+        mask = (self.ambient_noise_map.values < 55) & (noise_combined >= 55)
+        flip = np.where(mask, noise_combined, 0)
+
+        # Add the flip layer to the dataset
+        merged_dataset_night["flip"] = xr.DataArray(
+            flip,
+            dims=["lat", "lon"],
+            coords={
+                "lat": noise.coords["lat"],
+                "lon": noise.coords["lon"],
+            }
+        )
+
+        # Add metadata for clarity
+        merged_dataset_night["flip"].attrs["description"] = (
+            "Coordinates where ambient noise < 55 dB but combined noise > 55 dB"
+        )
+        merged_dataset_night["flip"].attrs["datatype"] = "boolean"
+
+        return merged_dataset, merged_dataset_night
 
     def generate_map(self, filepath="noise_map.html"):
         generate_map(
