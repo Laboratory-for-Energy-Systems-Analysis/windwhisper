@@ -72,6 +72,9 @@ def get_elevation_grid(
                 for d in elevations
             ])
 
+            print(url)
+            print(response)
+
             # Create a pivot table to reshape the data into a grid
             grid = df.pivot(index='lat', columns='lon', values='elevation')
 
