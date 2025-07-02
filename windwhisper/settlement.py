@@ -25,7 +25,7 @@ def get_population_subset(bbox: box):
 
     lon_min, lat_min, lon_max, lat_max = bbox.bounds
 
-    filepath = DATA_DIR / "GHS_POP_E2030_Europe.nc"
+    filepath = DATA_DIR / "worldpop.nc"
 
     # Open NetCDF lazily
     da = xr.open_dataset(filepath)["population"]

@@ -7,6 +7,8 @@ import numpy as np
 import xarray as xr
 import geopandas as gpd
 from shapely.geometry import box
+import xesmf as xe
+from pyproj import Geod
 
 from . import DATA_DIR
 from .settlement import get_population_subset
@@ -64,6 +66,47 @@ def guess_country(bbox_geom) -> tuple[str, float]:
     return country.get("ISO_A2_EH"), country.get("POP_EST", 0)
 
 
+geod = Geod(ellps="WGS84")
+
+def approximate_grid_cell_areas(lat, lon):
+    """
+    Compute area of each lat-lon cell (in m²) for a rectilinear grid.
+    Inputs:
+        lat (1D array): latitude coordinates
+        lon (1D array): longitude coordinates
+    Output:
+        area (2D array): (lat, lon) grid of cell areas in m²
+    """
+    lat = np.asarray(lat)
+    lon = np.asarray(lon)
+
+    dlat = np.diff(lat).mean()
+    dlon = np.diff(lon).mean()
+
+    lat_edges = np.concatenate([
+        [lat[0] - dlat / 2],
+        (lat[:-1] + lat[1:]) / 2,
+        [lat[-1] + dlat / 2]
+    ])
+    lon_edges = np.concatenate([
+        [lon[0] - dlon / 2],
+        (lon[:-1] + lon[1:]) / 2,
+        [lon[-1] + dlon / 2]
+    ])
+
+    area = np.zeros((len(lat), len(lon)))
+
+    for i in range(len(lat)):
+        for j in range(len(lon)):
+            # bounding box of each cell
+            l, r = lon_edges[j], lon_edges[j + 1]
+            b, t = lat_edges[i + 1], lat_edges[i]
+            # area in m²
+            poly_area, _ = geod.polygon_area_perimeter([l, r, r, l, l], [b, b, t, t, b])
+            area[i, j] = abs(poly_area)
+
+    return area  # shape (lat, lon)
+
 class HumanHealth:
     def __init__(self, noiseanalysis: NoiseAnalysis, lifetime : int = 20):
         self.l_den = noiseanalysis.merged_map["combined"]
@@ -85,12 +128,27 @@ class HumanHealth:
             float(noiseanalysis.ambient_noise_map.coords["lat"].max()),
         )
 
-        self.population = get_population_subset(bbox).interp(
-            lat=self.l_den.lat,
-            lon=self.l_den.lon,
-            method="linear"
+        # 1. Get original population data (people per cell)
+        source = get_population_subset(bbox)  # (lat, lon) grid
+
+        # 2. Compute original grid cell areas
+        area_src = approximate_grid_cell_areas(source.lat.values, source.lon.values)
+        pop_density = source / area_src  # people/m²
+
+        # 3. Interpolate to target grid (same units: people/m²)
+        pop_density_interp = pop_density.interp(
+            lat=self.l_den.lat, lon=self.l_den.lon, method="linear"
         )
 
+        # 4. Compute area of target grid cells
+        area_dst = approximate_grid_cell_areas(
+            self.l_den.lat.values, self.l_den.lon.values
+        )
+
+        # 5. Multiply to get people per cell
+        self.population = (pop_density_interp * area_dst).astype("float32")
+
+        self.noiseanalysis = noiseanalysis
         self.country, self.country_population = guess_country(bbox)
         self.disease_data = load_disease_data(self.country)
         self.human_health_parameters = load_human_health_parameters()
@@ -318,6 +376,19 @@ class HumanHealth:
             metadata = {
                 "Country": [self.country],
                 "Estimated population": [self.country_population],
+                "Population in area": [self.population.sum().item()],
+                "Lifetime (years) of wind turbines": [self.lifetime],
+                "Number of wind turbines": [len(self.noiseanalysis.wind_turbines)],
+                "Power (kW) of wind turbines": [turbine["power"] for turbine in self.noiseanalysis.wind_turbines.values()],
+                "Location of wind turbines (lat, lon)": [
+                    f"({turbine['position'][0]}, {turbine['position'][1]})"
+                    for turbine in self.noiseanalysis.wind_turbines.values()
+                ],
+                "Bounding box (lat , lon)": [
+                    f"({self.l_den.lat.min().values.item(0)}, {self.l_den.lon.min().values.item(0)}) - "
+                    f"({self.l_den.lat.max().values.item(0)}, {self.l_den.lon.max().values.item(0)})"
+                ],
+                "Electricity production (kWh) over lifetime": [self.electricity_production],
             }
             pd.DataFrame(metadata).to_excel(writer, sheet_name="summary", index=False)
 

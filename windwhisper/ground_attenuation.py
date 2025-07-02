@@ -85,7 +85,8 @@ def calculate_ground_attenuation(
     elevation_grid = get_elevation_grid(
         longitudes=longitudes,
         latitudes=latitudes,
-        elevation_data=elevation_data
+        elevation_data=elevation_data,
+        wind_turbines=wind_turbines
     )
 
     if elevation_grid is None:

@@ -1,4 +1,4 @@
-from windwhisper import WindTurbines, NoisePropagation, NoiseAnalysis
+from windwhisper import WindTurbines, NoisePropagation, NoiseAnalysis, HumanHealth
 import xarray as xr
 
 # time to test the new workflow
@@ -36,7 +36,7 @@ wt = WindTurbines(
     #retrain_model=True
 )
 
-elevation_data = xr.open_dataset("fixtures/Copernicus_DSM_90m_COG.nc")
+elevation_data = xr.open_dataset("fixtures/elevation_europe.nc")
 
 noise_prop = NoisePropagation(
     wind_turbines=wt.wind_turbines,
@@ -50,8 +50,8 @@ noise_analysis = NoiseAnalysis(
     wind_turbines=wt.wind_turbines,
 )
 
-noise_analysis.generate_map(
-    filepath="my_noise_map.html"
+hh = HumanHealth(
+    noise_analysis
 )
 
 elapsed_time = time.process_time() - t

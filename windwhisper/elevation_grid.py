@@ -9,6 +9,9 @@ import os
 from dotenv import load_dotenv
 from xarray import DataArray
 import pandas as pd
+from scipy.interpolate import RegularGridInterpolator
+from pyproj import Geod
+
 
 from .utils import load_secret
 
@@ -27,10 +30,12 @@ else:
 
 MAX_SAMPLING_POINTS = int(os.getenv("MAX_SAMPLING_POINTS"))
 
+
 def get_elevation_grid(
         longitudes: np.array,
         latitudes: np.array,
-        elevation_data = None
+        elevation_data = None,
+        wind_turbines: dict = None
 ) -> DataArray | None:
     """
     Fetch elevation data for a given bounding box.
@@ -98,18 +103,88 @@ def get_elevation_grid(
     else:
         # we use directly elevation data
         print("Using local elevation data")
-        new_coords = {"latitude": ("latitude", latitudes), "longitude": ("longitude", longitudes)}
 
-        # Check if the coordinates are sorted
-        if np.all(np.diff(elevation_data.latitude.values) >= 0) and np.all(
-                np.diff(elevation_data.longitude.values) >= 0):
-            is_sorted = True
-        else:
-            is_sorted = False
+        elevation_data = clip_array_around_turbines(
+            elevation_data,
+            wind_turbines
+        )
 
-        interpolated_ds = elevation_data.interp(new_coords, method="linear", assume_sorted=is_sorted)
+        # Ensure ascending order
+        if elevation_data.latitude.values[0] > elevation_data.latitude.values[-1]:
+            elevation_data = elevation_data.sortby("latitude")
+        if elevation_data.longitude.values[0] > elevation_data.longitude.values[-1]:
+            elevation_data = elevation_data.sortby("longitude")
 
-        return interpolated_ds.to_array().squeeze()
+        grid_data = np.asarray(elevation_data.data)
+
+        interpolator = RegularGridInterpolator(
+            (elevation_data.latitude.values, elevation_data.longitude.values),
+            grid_data,
+            bounds_error=False,
+            fill_value=np.nan
+        )
+
+        # Build lat/lon mesh grid
+        lon_grid, lat_grid = np.meshgrid(longitudes, latitudes)
+
+        # Flatten and stack coordinates for interpolation
+        points = np.column_stack((lat_grid.ravel(), lon_grid.ravel()))
+        interpolated_values = interpolator(points).reshape(lat_grid.shape)
+
+        # Return as xarray DataArray
+        da_interp = xr.DataArray(
+            interpolated_values,
+            coords={"latitude": latitudes, "longitude": longitudes},
+            dims=["latitude", "longitude"],
+            name="elevation"
+        )
+
+        return da_interp
+
+
+def clip_array_around_turbines(da, wind_turbines, buffer_km=5.0):
+    """
+    Clip the xarray DataArray around the wind turbines positions with a buffer.
+    :param da: xarray DataArray with latitude and longitude coordinates.
+    :param wind_turbines: Dictionary of wind turbines with their positions.
+    :param buffer_km: Buffer distance in kilometers around each wind turbine.
+    :return: Clipped xarray DataArray.
+    """
+    geod = Geod(ellps="WGS84")
+
+    min_lat, max_lat = 90, -90
+    min_lon, max_lon = 180, -180
+
+    for turbine in wind_turbines.values():
+        lat, lon = turbine["position"]
+
+        # Approximate buffer bounding box using geodesic projection
+        lats = []
+        lons = []
+        for azimuth in [0, 90, 180, 270]:
+            lon_off, lat_off, _ = geod.fwd(lon, lat, azimuth, buffer_km * 1000)
+            lats.append(lat_off)
+            lons.append(lon_off)
+
+        min_lat = min(min_lat, min(lats))
+        max_lat = max(max_lat, max(lats))
+        min_lon = min(min_lon, min(lons))
+        max_lon = max(max_lon, max(lons))
+
+    # Prepare interpolator (scipy needs values as (lat, lon))
+    if isinstance(da, xr.Dataset):
+        da = da["elevation"]
+
+    # Ensure latitudes are sorted in ascending order before slicing
+    if da.latitude[0] > da.latitude[-1]:
+        da = da.sortby("latitude")
+
+    clipped = da.sel(
+        latitude=slice(min_lat, max_lat),
+        longitude=slice(min_lon, max_lon)
+    )
+
+    return clipped
 
 
 def distances_with_elevation(distances, relative_elevations):
