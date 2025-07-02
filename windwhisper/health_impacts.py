@@ -11,6 +11,7 @@ from shapely.geometry import box
 from . import DATA_DIR
 from .settlement import get_population_subset
 from .noiseanalysis import NoiseAnalysis
+from .electricity_production import get_electricity_production
 
 
 def load_human_health_parameters() -> dict:
@@ -30,8 +31,6 @@ def load_disease_data(country) -> Any | None:
             f"Falling back to Europe"
         )
         return df.loc[df["country_long"] == "European Region", :]
-
-
 
 def guess_country(bbox_geom) -> tuple[str, float]:
     """
@@ -70,6 +69,14 @@ class HumanHealth:
         self.l_den = noiseanalysis.merged_map["combined"]
         self.l_night = noiseanalysis.merged_map_night["combined"]
         self.lifetime = lifetime
+        self.electricity_production = sum(
+            get_electricity_production(
+                lat=turbine["position"][0],
+                lon=turbine["position"][1],
+                power=turbine["power"],
+                lifetime=lifetime
+            ) for turbine in noiseanalysis.wind_turbines.values()
+        )
 
         bbox = box(
             float(noiseanalysis.ambient_noise_map.coords["lon"].min()),
@@ -88,8 +95,8 @@ class HumanHealth:
         self.disease_data = load_disease_data(self.country)
         self.human_health_parameters = load_human_health_parameters()
         self.population_rate = self.population / self.country_population
-        self.human_health = None
-        self.calculate_total_dalys()
+        self.human_health = self.calculate_total_dalys()
+        self.human_health_per_kWh = self.human_health / self.electricity_production
 
 
     def get_disease_totals(
@@ -267,7 +274,7 @@ class HumanHealth:
         noise_type_ha: str = "road_without_alpinestudies",
         noise_type_hsd: str = "combined",
         noise_type: str = "road middle",
-    ):
+    ) -> xr.Dataset:
         """
         Calculate the total Disability-Adjusted Life Years (DALYs) for all health impacts
         based on the noise levels (Lden, Lnight) and the number of exposed individuals.
@@ -296,7 +303,7 @@ class HumanHealth:
         # replace NaNs with zeroe
         ds = ds.fillna(0)
 
-        self.human_health = ds
+        return ds
 
     def export_to_excel(self, filepath: str = "human_health_results.xlsx") -> None:
         """
@@ -331,7 +338,11 @@ class HumanHealth:
             df_ln = pd.DataFrame(self.l_night.values, index=self.l_night.lat.values, columns=self.l_night.lon.values)
             df_ln.to_excel(writer, sheet_name="L_night")
 
-            # --- Sheets 4+: DALYs per impact ---
+            # --- Sheet 4: population ---
+            df_pop = pd.DataFrame(self.population.values, index=self.population.lat.values, columns=self.population.lon.values)
+            df_pop.to_excel(writer, sheet_name="Population")
+
+            # --- Sheets 5+: DALYs per impact ---
             for varname in self.human_health.data_vars:
                 data = self.human_health[varname].values
                 df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
@@ -344,5 +355,19 @@ class HumanHealth:
             df_total = pd.DataFrame(total_dalys.values, index=self.human_health.lat.values,
                                     columns=self.human_health.lon.values)
             df_total.to_excel(writer, sheet_name="Total_DALYs")
+
+            # Same, with normalized per kWh values
+            for varname in self.human_health_per_kWh:
+                data = self.human_health_per_kWh[varname].values
+                df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
+                # Sheet names must be ≤ 31 chars
+                safe_name = varname[:31]
+                df.to_excel(writer, sheet_name=f"{safe_name}_per_kWh")
+
+            # --- Final Sheet: Total DALYs (sum of all layers) ---
+            total_dalys = self.human_health_per_kWh.to_array(dim='cause').sum(dim='cause')
+            df_total = pd.DataFrame(total_dalys.values, index=self.human_health.lat.values,
+                                    columns=self.human_health.lon.values)
+            df_total.to_excel(writer, sheet_name="Total_DALYs_per_kWh")
 
 
