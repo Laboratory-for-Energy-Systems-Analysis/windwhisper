@@ -21,8 +21,6 @@ import xarray as xr
 
 from . import DATA_DIR
 from .windspeed import WindSpeed
-from .noisepropagation import NoisePropagation
-from .noiseanalysis import NoiseAnalysis
 
 
 def train_wind_turbine_model(file_path: str = None) -> Tuple[RegressorMixin, List[str]]:

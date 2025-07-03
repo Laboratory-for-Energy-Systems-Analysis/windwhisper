@@ -173,7 +173,11 @@ def clip_array_around_turbines(da, wind_turbines, buffer_km=5.0):
 
     # Prepare interpolator (scipy needs values as (lat, lon))
     if isinstance(da, xr.Dataset):
-        da = da["elevation"]
+        try:
+            da = da["elevation"]
+        except KeyError:
+            raise ValueError("DataArray must contain 'elevation' variable."
+                             "Current variables: " + str(da.data_vars))
 
     # Ensure latitudes are sorted in ascending order before slicing
     if da.latitude[0] > da.latitude[-1]:

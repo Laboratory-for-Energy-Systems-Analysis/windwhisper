@@ -1,4 +1,3 @@
-import math
 import json
 from typing import Any
 
@@ -7,7 +6,6 @@ import numpy as np
 import xarray as xr
 import geopandas as gpd
 from shapely.geometry import box
-import xesmf as xe
 from pyproj import Geod
 
 from . import DATA_DIR
@@ -109,8 +107,8 @@ def approximate_grid_cell_areas(lat, lon):
 
 class HumanHealth:
     def __init__(self, noiseanalysis: NoiseAnalysis, lifetime : int = 20):
-        self.l_den = noiseanalysis.merged_map["combined"]
-        self.l_night = noiseanalysis.merged_map_night["combined"]
+        #self.l_den = noiseanalysis.merged_map["combined"]
+        #self.l_night = noiseanalysis.merged_map_night["combined"]
         self.lifetime = lifetime
         self.electricity_production = sum(
             get_electricity_production(
@@ -122,10 +120,10 @@ class HumanHealth:
         )
 
         bbox = box(
-            float(noiseanalysis.ambient_noise_map.coords["lon"].min()),
-            float(noiseanalysis.ambient_noise_map.coords["lat"].min()),
-            float(noiseanalysis.ambient_noise_map.coords["lon"].max()),
-            float(noiseanalysis.ambient_noise_map.coords["lat"].max()),
+            float(noiseanalysis.ambient_noise_map_lden.coords["lon"].min()),
+            float(noiseanalysis.ambient_noise_map_lden.coords["lat"].min()),
+            float(noiseanalysis.ambient_noise_map_lden.coords["lon"].max()),
+            float(noiseanalysis.ambient_noise_map_lden.coords["lat"].max()),
         )
 
         # 1. Get original population data (people per cell)
@@ -137,12 +135,15 @@ class HumanHealth:
 
         # 3. Interpolate to target grid (same units: people/m²)
         pop_density_interp = pop_density.interp(
-            lat=self.l_den.lat, lon=self.l_den.lon, method="linear"
+            lat=noiseanalysis.ambient_noise_map_lden.coords["lat"].values,
+            lon=noiseanalysis.ambient_noise_map_lden.coords["lon"].values,
+            method="linear"
         )
 
         # 4. Compute area of target grid cells
         area_dst = approximate_grid_cell_areas(
-            self.l_den.lat.values, self.l_den.lon.values
+            noiseanalysis.ambient_noise_map_lden.coords["lat"].values,
+            noiseanalysis.ambient_noise_map_lden.coords["lon"].values
         )
 
         # 5. Multiply to get people per cell
@@ -153,7 +154,17 @@ class HumanHealth:
         self.disease_data = load_disease_data(self.country)
         self.human_health_parameters = load_human_health_parameters()
         self.population_rate = self.population / self.country_population
-        self.human_health = self.calculate_total_dalys()
+
+        self.human_health_wo_turbines = self.calculate_total_dalys(
+            lden=noiseanalysis.merged_map["ambient"],
+            lnight=noiseanalysis.merged_map_night["ambient"]
+        )
+        self.human_health_per_kWh_wo_turbines = self.human_health_wo_turbines / self.electricity_production
+
+        self.human_health = self.calculate_total_dalys(
+            lden=noiseanalysis.merged_map["combined"],
+            lnight=noiseanalysis.merged_map["combined"]
+        )
         self.human_health_per_kWh = self.human_health / self.electricity_production
 
 
@@ -177,6 +188,7 @@ class HumanHealth:
 
     def calculate_highly_annoyed_dalys(
         self,
+        lden: xr.DataArray,
         noise_type_ha: str
     ) -> np.ndarray:
         """
@@ -191,7 +203,7 @@ class HumanHealth:
         b = p["b"]
         c = p["c"]
         disability_weight = p["disability_weight"]
-        percentage_affected = a + b * self.l_den + c * (self.l_den ** 2)
+        percentage_affected = a + b * lden + c * (lden ** 2)
         affected = self.population * (percentage_affected / 100)
         yld = affected * disability_weight
         dalys_per_year = yld
@@ -203,6 +215,7 @@ class HumanHealth:
     # 2. High Sleep Disorder
     def calculate_high_sleep_disorder_dalys(
         self,
+        lnight: xr.DataArray,
         noise_type_hsd: str
     )-> np.ndarray:
         """
@@ -217,7 +230,7 @@ class HumanHealth:
         b = p["b"]
         c = p["c"]
         disability_weight = p["disability_weight"]
-        percentage_affected = a + b * self.l_night + c * (self.l_night ** 2)
+        percentage_affected = a + b * lnight + c * (lnight ** 2)
         affected = self.population * (percentage_affected / 100)
         yld = affected * disability_weight
         dalys_per_year = yld
@@ -229,6 +242,7 @@ class HumanHealth:
     # 3. Ischemic Heart Disease (IHD)
     def calculate_ihd_dalys(
         self,
+        lden: xr.DataArray,
         noise_type: str,
     ) -> np.ndarray:
         """
@@ -242,7 +256,7 @@ class HumanHealth:
         rr_per_10db = p["a"]
         threshold = p["threshold"]
 
-        rr = np.exp((np.log(rr_per_10db) / 10) * (self.l_den - threshold))
+        rr = np.exp((np.log(rr_per_10db) / 10) * (lden - threshold))
         paf = self.population_rate * (rr - 1) / (self.population_rate * (rr - 1) + 1)
         yld_total, yll_total = self.get_disease_totals("ischemic_heart_disease")
         yld_noise = yld_total * paf
@@ -252,7 +266,7 @@ class HumanHealth:
 
         # zero DALYs were value below threshold
         dalys = xr.where(
-            self.l_den >= threshold,
+            lden >= threshold,
             dalys,
             0
         )
@@ -263,6 +277,7 @@ class HumanHealth:
     # 4. Diabetes
     def calculate_diabetes_dalys(
         self,
+        lden: xr.DataArray,
         noise_type: str,
     ) -> np.ndarray:
         """
@@ -276,7 +291,7 @@ class HumanHealth:
         rr_per_10db = p["a"]
         threshold = p["threshold"]
 
-        rr = np.exp((np.log(rr_per_10db) / 10) * (self.l_den - threshold))
+        rr = np.exp((np.log(rr_per_10db) / 10) * (lden - threshold))
         paf = self.population_rate * (rr - 1) / (self.population_rate * (rr - 1) + 1)
         yld_total, yll_total = self.get_disease_totals("diabetes")
         yld_noise = yld_total * paf
@@ -286,7 +301,7 @@ class HumanHealth:
 
         # zero DALYs were value below threshold
         dalys = xr.where(
-            self.l_den >= threshold,
+            lden >= threshold,
             dalys,
             0
         )
@@ -295,8 +310,9 @@ class HumanHealth:
 
 
     def calculate_stroke_dalys(
-            self,
-            noise_type: str,
+        self,
+        lden: xr.DataArray,
+        noise_type: str,
     ):
         """
         Calculate the Disability-Adjusted Life Years (DALYs) for stroke
@@ -309,7 +325,7 @@ class HumanHealth:
         rr_per_10db = p["a"]
         threshold = p["threshold"]
 
-        rr = np.exp((np.log(rr_per_10db) / 10) * (self.l_den - threshold))
+        rr = np.exp((np.log(rr_per_10db) / 10) * (lden - threshold))
         paf = self.population_rate * (rr - 1) / (self.population_rate * (rr - 1) + 1)
         yld_total, yll_total = self.get_disease_totals("stroke")
         yld_noise = yld_total * paf
@@ -319,7 +335,7 @@ class HumanHealth:
 
         # zero DALYs were value below threshold
         dalys = xr.where(
-            self.l_den >= threshold,
+            lden >= threshold,
             dalys,
             0
         )
@@ -329,6 +345,8 @@ class HumanHealth:
 
     def calculate_total_dalys(
         self,
+        lden: xr.DataArray,
+        lnight: xr.DataArray,
         noise_type_ha: str = "road_without_alpinestudies",
         noise_type_hsd: str = "combined",
         noise_type: str = "road middle",
@@ -336,17 +354,18 @@ class HumanHealth:
         """
         Calculate the total Disability-Adjusted Life Years (DALYs) for all health impacts
         based on the noise levels (Lden, Lnight) and the number of exposed individuals.
-        :param exposed_individuals: Number of individuals exposed to noise.
+        :param lden: Noise level in Lden (day-evening-night noise level).
+        :param lnight: Noise level in Lnight (night noise level).
         :param noise_type_ha: Type of noise for highly annoyed (e.g., "road_without_alpinestudies", "combined").
         :param noise_type_hsd: Type of noise for high sleep disorder (e.g., "combined", "road_without_alpinestudies").
         :param noise_type: Type of noise for ischemic heart disease, diabetes, and stroke (e.g., "road middle", "railway").
         :return: Total DALYs for all health impacts.
         """
-        dalys_ha = self.calculate_highly_annoyed_dalys(noise_type_ha)
-        dalys_hsd = self.calculate_high_sleep_disorder_dalys(noise_type_hsd)
-        dalys_ihd = self.calculate_ihd_dalys(noise_type)
-        dalys_diabetes = self.calculate_diabetes_dalys(noise_type)
-        dalys_stroke = self.calculate_stroke_dalys(noise_type)
+        dalys_ha = self.calculate_highly_annoyed_dalys(lden, noise_type_ha)
+        dalys_hsd = self.calculate_high_sleep_disorder_dalys(lnight, noise_type_hsd)
+        dalys_ihd = self.calculate_ihd_dalys(lden, noise_type)
+        dalys_diabetes = self.calculate_diabetes_dalys(lden, noise_type)
+        dalys_stroke = self.calculate_stroke_dalys(lden, noise_type)
 
         ds = xr.Dataset(
             {
@@ -385,8 +404,8 @@ class HumanHealth:
                     for turbine in self.noiseanalysis.wind_turbines.values()
                 ],
                 "Bounding box (lat , lon)": [
-                    f"({self.l_den.lat.min().values.item(0)}, {self.l_den.lon.min().values.item(0)}) - "
-                    f"({self.l_den.lat.max().values.item(0)}, {self.l_den.lon.max().values.item(0)})"
+                    f"({self.noiseanalysis.ambient_noise_map_lden.coords['lat'].min().item(0)}, {self.noiseanalysis.ambient_noise_map_lden.coords['lon'].min().item(0)}) - "
+                    f"({self.noiseanalysis.ambient_noise_map_lden.coords['lat'].max().item(0)}, {self.noiseanalysis.ambient_noise_map_lden.coords['lon'].max().item(0)}) - "
                 ],
                 "Electricity production (kWh) over lifetime": [self.electricity_production],
             }
@@ -401,31 +420,83 @@ class HumanHealth:
             hp_flat.T.reset_index().rename(columns={"index": "parameter", 0: "value"}) \
                 .to_excel(writer, sheet_name="summary", startrow=6 + len(disease_flat), index=False)
 
-            # --- Sheet 2: L_den ---
-            df_ld = pd.DataFrame(self.l_den.values, index=self.l_den.lat.values, columns=self.l_den.lon.values)
-            df_ld.to_excel(writer, sheet_name="L_den")
+            # --- Sheet 2: L_den without turbines ---
+            df_ld = pd.DataFrame(
+                self.noiseanalysis.merged_map["ambient"].values,
+                index=self.noiseanalysis.merged_map["ambient"].coords["lat"].values,
+                columns=self.noiseanalysis.merged_map["ambient"].coords["lon"].values
+            )
+            df_ld.to_excel(writer, sheet_name="L_den_wo_turb")
 
-            # --- Sheet 3: L_night ---
-            df_ln = pd.DataFrame(self.l_night.values, index=self.l_night.lat.values, columns=self.l_night.lon.values)
-            df_ln.to_excel(writer, sheet_name="L_night")
+            # --- Sheet 3: L_night without turbines ---
+            df_ln = pd.DataFrame(
+                self.noiseanalysis.merged_map_night["ambient"].values,
+                index=self.noiseanalysis.merged_map_night["ambient"].coords["lat"].values,
+                columns=self.noiseanalysis.merged_map_night["ambient"].coords["lon"].values
+            )
+            df_ln.to_excel(writer, sheet_name="L_night_wo_turb")
+
+            # --- Sheet 2: L_den with turbines ---
+            df_ld = pd.DataFrame(
+                self.noiseanalysis.merged_map["combined"].values,
+                index=self.noiseanalysis.merged_map["combined"].coords["lat"].values,
+                columns=self.noiseanalysis.merged_map["combined"].coords["lon"].values
+            )
+            df_ld.to_excel(writer, sheet_name="L_den_w_turb")
+
+            # --- Sheet 3: L_night with turbines ---
+            df_ln = pd.DataFrame(
+                self.noiseanalysis.merged_map_night["combined"].values,
+                index=self.noiseanalysis.merged_map_night["combined"].coords["lat"].values,
+                columns=self.noiseanalysis.merged_map_night["combined"].coords["lon"].values
+            )
+            df_ln.to_excel(writer, sheet_name="L_night_w_turb")
 
             # --- Sheet 4: population ---
             df_pop = pd.DataFrame(self.population.values, index=self.population.lat.values, columns=self.population.lon.values)
             df_pop.to_excel(writer, sheet_name="Population")
 
             # --- Sheets 5+: DALYs per impact ---
+            for varname in self.human_health_wo_turbines.data_vars:
+                data = self.human_health_wo_turbines[varname].values
+                df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
+                # Sheet names must be ≤ 31 chars
+                safe_name = varname[:31]
+                df.to_excel(writer, sheet_name=f"{safe_name}_wo_turb")
+
+            # --- Final Sheet: Total DALYs (sum of all layers) ---
+            total_dalys = self.human_health_wo_turbines.to_array(dim='cause').sum(dim='cause')
+            df_total = pd.DataFrame(
+                total_dalys.values,
+                index=self.human_health.lat.values,
+                columns=self.human_health.lon.values
+            )
+            df_total.to_excel(writer, sheet_name="Sum_DALY_wo_turb")
+
+            # --- Sheets 5+: DALYs per impact with turbines ---
             for varname in self.human_health.data_vars:
                 data = self.human_health[varname].values
                 df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
                 # Sheet names must be ≤ 31 chars
                 safe_name = varname[:31]
-                df.to_excel(writer, sheet_name=safe_name)
+                df.to_excel(writer, sheet_name=f"{safe_name}_w_turb")
 
             # --- Final Sheet: Total DALYs (sum of all layers) ---
             total_dalys = self.human_health.to_array(dim='cause').sum(dim='cause')
-            df_total = pd.DataFrame(total_dalys.values, index=self.human_health.lat.values,
-                                    columns=self.human_health.lon.values)
-            df_total.to_excel(writer, sheet_name="Total_DALYs")
+            df_total = pd.DataFrame(
+                total_dalys.values,
+                index=self.human_health.lat.values,
+                columns=self.human_health.lon.values
+            )
+            df_total.to_excel(writer, sheet_name="Sum_DALY_w_turb")
+
+            # Same, with normalized per kWh values
+            for varname in self.human_health_per_kWh_wo_turbines:
+                data = self.human_health_per_kWh_wo_turbines[varname].values
+                df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
+                # Sheet names must be ≤ 31 chars
+                safe_name = varname[:31]
+                df.to_excel(writer, sheet_name=f"{safe_name}_wo_turb_kWh")
 
             # Same, with normalized per kWh values
             for varname in self.human_health_per_kWh:
@@ -433,12 +504,61 @@ class HumanHealth:
                 df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
                 # Sheet names must be ≤ 31 chars
                 safe_name = varname[:31]
-                df.to_excel(writer, sheet_name=f"{safe_name}_per_kWh")
+                df.to_excel(writer, sheet_name=f"{safe_name}_w_turb_kWh")
 
             # --- Final Sheet: Total DALYs (sum of all layers) ---
+            total_dalys = self.human_health_per_kWh_wo_turbines.to_array(dim='cause').sum(dim='cause')
+            df_total = pd.DataFrame(total_dalys.values, index=self.human_health.lat.values,
+                                    columns=self.human_health.lon.values)
+            df_total.to_excel(writer, sheet_name="Total_DALYs_wo_turbines_per_kWh")
+
             total_dalys = self.human_health_per_kWh.to_array(dim='cause').sum(dim='cause')
             df_total = pd.DataFrame(total_dalys.values, index=self.human_health.lat.values,
                                     columns=self.human_health.lon.values)
-            df_total.to_excel(writer, sheet_name="Total_DALYs_per_kWh")
+            df_total.to_excel(writer, sheet_name="Sum_DALY_w_turb_kWh")
+
+            # calculate delta DALYs
+            delta_dalys = self.human_health - self.human_health_wo_turbines
+            # replace negative values with zeros
+            delta_dalys = xr.where(delta_dalys < 0, 0, delta_dalys)
+            delta_dalys_per_kWh = self.human_health_per_kWh - self.human_health_per_kWh_wo_turbines
+            # replace negative values with zeros
+            delta_dalys_per_kWh = xr.where(delta_dalys_per_kWh < 0, 0, delta_dalys_per_kWh)
+
+            # --- Sheet: Delta DALYs (with turbines - without turbines) ---
+            for varname in delta_dalys.data_vars:
+                data = delta_dalys[varname].values
+                df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
+                # Sheet names must be ≤ 31 chars
+                safe_name = varname[:31]
+                df.to_excel(writer, sheet_name=f"{safe_name}_diff")
+
+            # --- Final Sheet: Total Delta DALYs (sum of all layers) ---
+            total_delta_dalys = delta_dalys.to_array(dim='cause').sum(dim='cause')
+            df_total_delta = pd.DataFrame(
+                total_delta_dalys.values,
+                index=self.human_health.lat.values,
+                columns=self.human_health.lon.values
+            )
+            df_total_delta.to_excel(writer, sheet_name="Sum_DALY_diff")
+
+            # --- Sheet: Delta DALYs per kWh (with turbines - without turbines) ---
+            for varname in delta_dalys_per_kWh.data_vars:
+                data = delta_dalys_per_kWh[varname].values
+                df = pd.DataFrame(data, index=self.human_health.lat.values, columns=self.human_health.lon.values)
+                # Sheet names must be ≤ 31 chars
+                safe_name = varname[:31]
+                df.to_excel(writer, sheet_name=f"{safe_name}_diff_kWh")
+
+            # --- Final Sheet: Total Delta DALYs per kWh (sum of all layers) ---
+            total_delta_dalys_per_kWh = delta_dalys_per_kWh.to_array(dim='cause').sum(dim='cause')
+            df_total_delta_per_kWh = pd.DataFrame(
+                total_delta_dalys_per_kWh.values,
+                index=self.human_health.lat.values,
+                columns=self.human_health.lon.values
+            )
+            df_total_delta_per_kWh.to_excel(writer, sheet_name="Sum_DALY_diff_kWh")
+
+
 
 
