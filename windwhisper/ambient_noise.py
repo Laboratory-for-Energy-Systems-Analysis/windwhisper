@@ -15,11 +15,18 @@ from windwhisper.utils import translate_4326_to_3035
 
 load_dotenv()
 
-NOISE_MAPS_URLS = {
-    "airports": os.getenv("API_EU_NOISE_AIRPORTS"),
-    "industry": os.getenv("API_EU_NOISE_INDUSTRY"),
-    "highways": os.getenv("API_EU_NOISE_HIGHWAYS"),
-    "railtracks": os.getenv("API_EU_NOISE_RAILWAYS")
+NOISE_MAPS_URLS_LDEN = {
+    "airports": os.getenv("API_EU_NOISE_AIRPORTS_LDEN"),
+    "industry": os.getenv("API_EU_NOISE_INDUSTRY_LDEN"),
+    "highways": os.getenv("API_EU_NOISE_HIGHWAYS_LDEN"),
+    "railtracks": os.getenv("API_EU_NOISE_RAILWAYS_LDEN")
+}
+
+NOISE_MAPS_URLS_LNIGHT = {
+    "airports": os.getenv("API_EU_NOISE_AIRPORTS_LNIGHT"),
+    "industry": os.getenv("API_EU_NOISE_INDUSTRY_LNIGHT"),
+    "highways": os.getenv("API_EU_NOISE_HIGHWAYS_LNIGHT"),
+    "railtracks": os.getenv("API_EU_NOISE_RAILWAYS_LNIGHT")
 }
 
 PIXEL_VALUE_TO_LDEN = {
@@ -75,7 +82,7 @@ def combine_noise_levels(noise_layers: list) -> np.ndarray:
     return combined
 
 
-def get_ambient_noise_levels(latitudes, longitudes, resolution: tuple) -> xr.DataArray | None:
+def get_ambient_noise_levels(latitudes, longitudes, resolution: tuple, lden=True) -> xr.DataArray | None:
     """
     Get the ambient noise levels for a given location.
     :param lon_min: Minimum longitude of the bounding box.
@@ -88,6 +95,11 @@ def get_ambient_noise_levels(latitudes, longitudes, resolution: tuple) -> xr.Dat
     noise_layers = []
     x_min, y_min = translate_4326_to_3035(longitudes.min(), latitudes.min())
     x_max, y_max = translate_4326_to_3035(longitudes.max(), latitudes.max())
+
+    if lden:
+        NOISE_MAPS_URLS = NOISE_MAPS_URLS_LDEN
+    else:
+        NOISE_MAPS_URLS = NOISE_MAPS_URLS_LNIGHT
 
     for t, url in NOISE_MAPS_URLS.items():
         layer = get_noise_values(url, x_min, x_max, y_min, y_max, resolution)
