@@ -7,7 +7,6 @@ import numpy as np
 import xarray as xr
 import geopandas as gpd
 from shapely.geometry import box
-import xesmf as xe
 from pyproj import Geod
 
 from . import DATA_DIR
