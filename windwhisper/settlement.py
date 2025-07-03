@@ -2,11 +2,7 @@
 Fetch layer representing human settlements.
 """
 
-import rioxarray
-import pyproj
 from shapely.geometry import box
-from shapely.ops import transform
-import xarray as xr
 from . import DATA_DIR
 
 import xarray as xr
