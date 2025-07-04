@@ -53,6 +53,11 @@ class NoiseAnalysis:
             lat=lat
         ).fillna(0)
 
+        self.ambient_noise_map_lnight = self.ambient_noise_map_lnight.interp(
+            lon=lon,
+            lat=lat
+        ).fillna(0)
+
         # Combine the two datasets into a single xarray
         merged_dataset = xr.Dataset({
             "ambient": self.ambient_noise_map_lden,
@@ -99,7 +104,7 @@ class NoiseAnalysis:
         merged_dataset["combined"].attrs["description"] = "Combined noise levels (ambient + LDEN) in dB"
         merged_dataset["combined"].attrs["units"] = "dB"
 
-        merged_dataset_night["combined"].attrs["description"] = "Combined noise levels (ambient + LDEN) in dB"
+        merged_dataset_night["combined"].attrs["description"] = "Combined noise levels (ambient + LNIGHT) in dB"
         merged_dataset_night["combined"].attrs["units"] = "dB"
 
         # Calculate the net contribution of lden_noise to the combined noise level
@@ -152,7 +157,7 @@ class NoiseAnalysis:
         merged_dataset["flip"].attrs["datatype"] = "boolean"
 
         mask = (self.ambient_noise_map_lnight.values < 50) & (noise_combined_night >= 50)
-        flip = np.where(mask, noise_combined, 0)
+        flip = np.where(mask, noise_combined_night, 0)
 
         # Add the flip layer to the dataset
         merged_dataset_night["flip"] = xr.DataArray(
