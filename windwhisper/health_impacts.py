@@ -204,7 +204,6 @@ class HumanHealth:
         a = p["a"]
         b = p["b"]
         c = p["c"]
-        #threshold at minimum of the quadratic function
         threshold = 0
         disability_weight = p["disability_weight"]
 
@@ -255,7 +254,7 @@ class HumanHealth:
         a = p["a"]
         b = p["b"]
         c = p["c"]
-        # threshold at minimum of the quadratic function
+
         threshold = 0
         disability_weight = p["disability_weight"]
 
