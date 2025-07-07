@@ -71,10 +71,14 @@ class NoiseAnalysis:
             + 10 ** (self.noise_propagation.incr_noise_att["noise-distance-atmospheric-ground-obstacle"].values / 10)
         )
 
+        noise_combined = np.maximum(noise_combined, self.ambient_noise_map_lden.values)
+
         noise_combined_night = 10 * np.log10(
             10 ** (self.ambient_noise_map_lnight.values / 10)
             + 10 ** (self.noise_propagation.incr_noise_att_night["noise-distance-atmospheric-ground-obstacle"].values / 10)
         )
+
+        noise_combined_night = np.maximum(noise_combined_night, self.ambient_noise_map_lnight.values)
 
         # Add the new layer to the dataset
         merged_dataset["combined"] = xr.DataArray(
