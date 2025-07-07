@@ -185,19 +185,21 @@ class HumanHealth:
             raise ValueError(f"No data found for {disease} in {self.country}")
         return float(row["YLD"].values[0]), float(row["YLL"].values[0])
 
-
     def calculate_highly_annoyed_dalys(
-        self,
-        lden: xr.DataArray,
-        noise_type_ha: str
+            self,
+            lden: xr.DataArray,
+            noise_type_ha: str
     ) -> np.ndarray:
         """
         Calculate the Disability-Adjusted Life Years (DALYs) for highly annoyed individuals
         based on the noise level (Lden) and the number of exposed individuals.
+        Applies a correction to avoid increasing DALYs at low Lden due to the shape of the quadratic fit.
+
         :param lden: Noise level in Lden (day-evening-night noise level).
         :param noise_type_ha: Type of noise (e.g., "road_without_alpinestudies", "combined").
         :return: DALYs for highly annoyed individuals.
         """
+        # Load parameters
         p = self.human_health_parameters["highly_annoyed"][noise_type_ha]
         a = p["a"]
         b = p["b"]
@@ -205,7 +207,20 @@ class HumanHealth:
         #threshold at minimum of the quadratic function
         threshold = (-b)/(2*c)
         disability_weight = p["disability_weight"]
-        percentage_affected = a + b * lden + c * (lden ** 2)
+
+        # Compute Lden value at minimum of the quadratic function
+        lden_min = -b / (2 * c)
+        min_percentage = a + b * lden_min + c * (lden_min ** 2)
+
+        # Calculate percentage affected,
+        # with correction below the minimum
+        percentage_affected = xr.where(
+            lden < lden_min,
+            min_percentage,
+            a + b * lden + c * (lden ** 2)
+        )
+
+        # Compute DALYs
         affected = self.population * (percentage_affected / 100)
         yld = affected * disability_weight
         dalys_per_year = yld
@@ -220,20 +235,22 @@ class HumanHealth:
 
         return dalys
 
-
     # 2. High Sleep Disorder
     def calculate_high_sleep_disorder_dalys(
-        self,
-        lnight: xr.DataArray,
-        noise_type_hsd: str
-    )-> np.ndarray:
+            self,
+            lnight: xr.DataArray,
+            noise_type_hsd: str
+    ) -> np.ndarray:
         """
         Calculate the Disability-Adjusted Life Years (DALYs) for high sleep disorder
         based on the noise level (Lnight) and the number of exposed individuals.
+        Applies a correction to avoid increasing DALYs at low Lnight due to the shape of the quadratic fit.
+
         :param lnight: Noise level in Lnight (night noise level).
         :param noise_type_hsd: Type of noise (e.g., "combined", "road_without_alpinestudies").
         :return: DALYs for high sleep disorder.
         """
+        # Load parameters
         p = self.human_health_parameters["high_sleep_disorder"][noise_type_hsd]
         a = p["a"]
         b = p["b"]
@@ -241,7 +258,19 @@ class HumanHealth:
         # threshold at minimum of the quadratic function
         threshold = (-b) / (2 * c)
         disability_weight = p["disability_weight"]
-        percentage_affected = a + b * lnight + c * (lnight ** 2)
+
+        # Compute Lnight value at minimum of the quadratic function
+        lnight_min = -b / (2 * c)
+        min_percentage = a + b * lnight_min + c * (lnight_min ** 2)
+
+        # Calculate percentage affected, with correction below the minimum
+        percentage_affected = xr.where(
+            lnight < lnight_min,
+            min_percentage,
+            a + b * lnight + c * (lnight ** 2)
+        )
+
+        # Compute DALYs
         affected = self.population * (percentage_affected / 100)
         yld = affected * disability_weight
         dalys_per_year = yld
@@ -255,7 +284,6 @@ class HumanHealth:
         )
 
         return dalys
-
 
     # 3. Ischemic Heart Disease (IHD)
     def calculate_ihd_dalys(
