@@ -202,12 +202,21 @@ class HumanHealth:
         a = p["a"]
         b = p["b"]
         c = p["c"]
+        #threshold at minimum of the quadratic function
+        threshold = (-b)/(2*c)
         disability_weight = p["disability_weight"]
         percentage_affected = a + b * lden + c * (lden ** 2)
         affected = self.population * (percentage_affected / 100)
         yld = affected * disability_weight
         dalys_per_year = yld
         dalys = dalys_per_year * self.lifetime
+
+        # zero DALYs were value below threshold
+        dalys = xr.where(
+            lden >= threshold,
+            dalys,
+            0
+        )
 
         return dalys
 
@@ -229,12 +238,21 @@ class HumanHealth:
         a = p["a"]
         b = p["b"]
         c = p["c"]
+        # threshold at minimum of the quadratic function
+        threshold = (-b) / (2 * c)
         disability_weight = p["disability_weight"]
         percentage_affected = a + b * lnight + c * (lnight ** 2)
         affected = self.population * (percentage_affected / 100)
         yld = affected * disability_weight
         dalys_per_year = yld
         dalys = dalys_per_year * self.lifetime
+
+        # zero DALYs were value below threshold
+        dalys = xr.where(
+            lnight >= threshold,
+            dalys,
+            0
+        )
 
         return dalys
 
