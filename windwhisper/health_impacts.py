@@ -205,7 +205,7 @@ class HumanHealth:
         b = p["b"]
         c = p["c"]
         #threshold at minimum of the quadratic function
-        threshold = (-b)/(2*c)
+        threshold = 0
         disability_weight = p["disability_weight"]
 
         # Compute Lden value at minimum of the quadratic function
@@ -256,7 +256,7 @@ class HumanHealth:
         b = p["b"]
         c = p["c"]
         # threshold at minimum of the quadratic function
-        threshold = (-b) / (2 * c)
+        threshold = 0
         disability_weight = p["disability_weight"]
 
         # Compute Lnight value at minimum of the quadratic function
