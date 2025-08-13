@@ -36,7 +36,7 @@ wt = WindTurbines(
     #retrain_model=True
 )
 
-elevation_data = xr.open_dataset("fixtures/elevation_europe.nc")
+elevation_data = xr.open_dataset("fixtures/Copernicus_DSM_90m_COG_EU.nc")
 
 noise_prop = NoisePropagation(
     wind_turbines=wt.wind_turbines,

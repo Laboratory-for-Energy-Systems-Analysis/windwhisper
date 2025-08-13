@@ -72,7 +72,7 @@ def _download_single_turbine_data(name, turbine):
                 ds = xr.open_dataset(tmp_file_path)
 
                 # Simplify the dataset
-                ds_simplified = ds[["WD10", "WS10"]].copy()
+                ds_simplified = ds[["WS10"]].copy()
                 ds_simplified.attrs.clear()
 
                 return ds_simplified, size_kb  # Return the simplified dataset

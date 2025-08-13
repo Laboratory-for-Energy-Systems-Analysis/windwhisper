@@ -1,5 +1,6 @@
 import json
 from typing import Any
+import math
 
 import pandas as pd
 import numpy as np
@@ -11,7 +12,7 @@ from pyproj import Geod
 from . import DATA_DIR
 from .settlement import get_population_subset
 from .noiseanalysis import NoiseAnalysis
-from .electricity_production import get_electricity_production
+from .electricity_production import get_electricity_production, get_capacity_factor
 
 
 def load_human_health_parameters() -> dict:
@@ -110,6 +111,14 @@ class HumanHealth:
         #self.l_den = noiseanalysis.merged_map["combined"]
         #self.l_night = noiseanalysis.merged_map_night["combined"]
         self.lifetime = lifetime
+        self.load_factor = np.mean(
+            [
+                get_capacity_factor(
+                    lat=turbine["position"][0],
+                    lon=turbine["position"][1]
+                ) for turbine in noiseanalysis.wind_turbines.values()
+            ]
+        )
         self.electricity_production = sum(
             get_electricity_production(
                 lat=turbine["position"][0],
