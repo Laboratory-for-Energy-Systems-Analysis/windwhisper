@@ -6,6 +6,13 @@ import os
 import sys
 from datetime import datetime
 from importlib import metadata
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+for candidate in (ROOT, ROOT / "windwhisper", ROOT / "src", ROOT / "src" / "windwhisper"):
+    p = str(candidate)
+    if candidate.exists() and p not in sys.path:
+        sys.path.insert(0, p)
 
 # Ensure the project root is on the path so autodoc can import the package.
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
