@@ -22,13 +22,10 @@ except Exception:
     release = "0.0.0"
 
 # ---- General config ----
-extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
-    "sphinx.ext.napoleon",
-    "sphinx_autodoc_typehints",
-    "myst_parser",
-]
+extensions = ["sphinx.ext.napoleon", "autoapi.extension", "myst_parser", "sphinx_rtd_theme"]
+autoapi_type = "python"
+autoapi_dirs = [str(PROJECT_ROOT / "windwhisper")]
+
 
 autosummary_generate = True
 autodoc_typehints = "description"
