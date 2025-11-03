@@ -9,8 +9,11 @@ from importlib import metadata
 
 # Ensure the project root is on the path so autodoc can import the package.
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+SOURCE_ROOT = os.path.join(PROJECT_ROOT, "windwhisper")
+
+for candidate in (PROJECT_ROOT, SOURCE_ROOT):
+    if candidate not in sys.path:
+        sys.path.insert(0, candidate)
 
 project = "WindWhisper"
 
@@ -46,18 +49,28 @@ intersphinx_mapping = {
 # Mock heavy scientific dependencies so the documentation can build without
 # requiring compiled binaries in the Read the Docs environment.
 autodoc_mock_imports = [
+    "affine",
     "folium",
     "geopandas",
+    "geopy",
+    "haversine",
+    "ipywidgets",
     "matplotlib",
-    "pandas",
     "netCDF4",
+    "numpy",
     "osmnx",
+    "pandas",
     "pyproj",
+    "python_dotenv",
+    "dotenv",
     "rasterio",
+    "requests",
     "scikit_learn",
     "seaborn",
+    "shapely",
     "sklearn",
     "skops",
+    "tqdm",
     "xarray",
 ]
 
