@@ -1,9 +1,4 @@
-"""
-Estimate noise attenuation due to ground type, distance from the source and elevation difference between the source
-and receiver, according to ISO 9613-2:2024.
-"""
-
-
+"""Estimate ground and obstacle attenuation following ISO 9613-2."""
 from multiprocessing import Pool
 import numpy as np
 import xarray as xr
@@ -19,6 +14,15 @@ NOISE_MAP_RESOLUTION = int(os.getenv("NOISE_MAP_RESOLUTION", 100))
 
 # Move compute_turbine_attenuation outside
 def compute_turbine_attenuation(args):
+    """Compute ground and obstacle attenuation for a single turbine.
+
+    :param args: Tuple containing the turbine identifier, specification,
+        latitude/longitude grids, elevation data, interpolator and distances.
+    :type args: tuple
+    :returns: Tuple ``(ground_attenuation, obstacles_attenuation)`` storing the
+        attenuation per grid cell.
+    :rtype: tuple[numpy.ndarray, numpy.ndarray]
+    """
     turbine, specs, latitudes, longitudes, elevation_grid, interpolator, euclidian_distances = args
     source_lat, source_lon = specs["position"]
     source_elevation = interpolator([source_lat, source_lon]) + specs["hub height"]
@@ -78,8 +82,23 @@ def calculate_ground_attenuation(
         wind_turbines,
         elevation_data
 ):
-    """
-    Calculate the ground attenuation in dB, according to ISO 9613-2:2024.
+    """Calculate ground and obstacle attenuation layers.
+
+    :param haversine_distances: Surface distances between each turbine and grid
+        cell.
+    :type haversine_distances: xarray.DataArray
+    :param longitudes: Longitudes defining the interpolation grid.
+    :type longitudes: numpy.ndarray
+    :param latitudes: Latitudes defining the interpolation grid.
+    :type latitudes: numpy.ndarray
+    :param wind_turbines: Turbine specifications keyed by turbine identifier.
+    :type wind_turbines: dict
+    :param elevation_data: Optional elevation dataset used instead of remote
+        downloads.
+    :type elevation_data: xarray.DataArray | None
+    :returns: Tuple containing the interpolated elevation grid, ground
+        attenuation layer and obstacle attenuation layer.
+    :rtype: tuple[xarray.DataArray | None, xarray.DataArray | None, xarray.DataArray | None]
     """
 
     elevation_grid = get_elevation_grid(
