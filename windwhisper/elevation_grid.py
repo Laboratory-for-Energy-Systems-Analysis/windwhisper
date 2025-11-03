@@ -1,6 +1,4 @@
-"""
-Fetch elevation grid for an area.
-"""
+"""Utilities for retrieving and interpolating elevation grids."""
 
 import requests
 import numpy as np
@@ -37,12 +35,19 @@ def get_elevation_grid(
         elevation_data = None,
         wind_turbines: dict = None
 ) -> DataArray | None:
-    """
-    Fetch elevation data for a given bounding box.
+    """Return a terrain elevation grid for the target domain.
 
-    :param: longitudes: A list of longitudes.
-    :param: latitude: A list of latitudes.
-    :return: A 2D numpy array containing the elevation data.
+    :param longitudes: Longitudes defining the interpolation grid.
+    :type longitudes: numpy.ndarray
+    :param latitudes: Latitudes defining the interpolation grid.
+    :type latitudes: numpy.ndarray
+    :param elevation_data: Optional local dataset used instead of remote APIs.
+    :type elevation_data: xarray.DataArray | None
+    :param wind_turbines: Turbine specifications including ``position`` tuples.
+    :type wind_turbines: dict | None
+    :returns: Elevation grid interpolated to the provided coordinates or
+        ``None`` when the remote request fails.
+    :rtype: xarray.DataArray | None
     """
 
     # determine the bounding box
@@ -143,12 +148,19 @@ def get_elevation_grid(
 
 
 def clip_array_around_turbines(da, wind_turbines, buffer_km=5.0):
-    """
-    Clip the xarray DataArray around the wind turbines positions with a buffer.
-    :param da: xarray DataArray with latitude and longitude coordinates.
-    :param wind_turbines: Dictionary of wind turbines with their positions.
-    :param buffer_km: Buffer distance in kilometers around each wind turbine.
-    :return: Clipped xarray DataArray.
+    """Clip an elevation grid around the wind turbines.
+
+    :param da: Elevation array with ``latitude`` and ``longitude`` coordinates.
+    :type da: xarray.DataArray | xarray.Dataset
+    :param wind_turbines: Turbine specifications including ``position`` tuples
+        expressed as ``(lat, lon)``.
+    :type wind_turbines: dict
+    :param buffer_km: Distance around each turbine to retain, in kilometres.
+    :type buffer_km: float
+    :returns: Elevation subset covering all turbines and their buffers.
+    :rtype: xarray.DataArray
+    :raises ValueError: If the dataset does not contain an ``'elevation'``
+        variable when a dataset is provided instead of a data array.
     """
     geod = Geod(ellps="WGS84")
 
@@ -192,9 +204,17 @@ def clip_array_around_turbines(da, wind_turbines, buffer_km=5.0):
 
 
 def distances_with_elevation(distances, relative_elevations):
-    """
-    Based on elevation and haversine distance, calculate the distance between two points
-    considering the elevation difference.
+    """Compute 3D distances using surface distance and elevation deltas.
+
+    :param distances: Surface distances between points (typically from
+        haversine calculations).
+    :type distances: xarray.DataArray
+    :param relative_elevations: Elevation differences between the same point
+        pairs.
+    :type relative_elevations: xarray.DataArray
+    :returns: Distances adjusted for the elevation component.
+    :rtype: xarray.DataArray
+    :raises AssertionError: If the provided arrays do not share the same shape.
     """
     # Ensure both arrays have the same shape
     assert distances.shape == relative_elevations.shape, "Shapes must match!"

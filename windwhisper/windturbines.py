@@ -1,6 +1,4 @@
-"""
-This module contains the WindTurbines class which models a wind turbine and predicts noise levels based on wind speed.
-"""
+"""Wind turbine specifications, model training and emission estimation."""
 
 from typing import List, Tuple
 from pathlib import Path
@@ -24,25 +22,28 @@ from .windspeed import WindSpeed
 
 
 def train_wind_turbine_model(file_path: str = None) -> Tuple[RegressorMixin, List[str]]:
-    """Trains the wind turbine model using the given data file.
+    """Train the wind turbine noise emission model.
 
-    :param file_path: Path to the CSV file containing the training data.
-    :return: A tuple containing the trained model and the noise columns.
+    :param file_path: Optional path to the training CSV file.
+    :type file_path: str | None
+    :returns: Trained scikit-learn model and the list of noise column names.
+    :rtype: tuple[sklearn.base.RegressorMixin, list[str]]
+    :raises FileNotFoundError: If the training dataset cannot be located.
+    :raises ValueError: When the provided file is not a CSV file.
     """
 
     if file_path is None:
         file_path = Path(DATA_DIR / "training_data" / "noise_wind_turbines.csv")
 
-    # Check that the file exists
-    if not Path(file_path).exists():
-        raise FileNotFoundError(f"The file '{file_path}' was not found.")
-
     # File extension must be .csv
     if Path(file_path).suffix != ".csv":
         raise ValueError(f"The file extension for '{file_path}' must be '.csv'.")
 
-    # Read the CSV file, skipping metadata rows
-    df = pd.read_csv(file_path, skiprows=[1, 2])
+    try:
+        # Read the CSV file, skipping metadata rows
+        df = pd.read_csv(file_path, skiprows=[1, 2])
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"The file '{file_path}' was not found.") from exc
 
     # List of noise columns
     noise_cols = [col for col in df.columns if "Noise" in col]
@@ -105,9 +106,13 @@ def train_wind_turbine_model(file_path: str = None) -> Tuple[RegressorMixin, Lis
 
 
 def load_model(filepath=None) -> Tuple[RegressorMixin, List[str]]:
-    """
-    Loads the trained model from the 'default_model.joblib' file.
-    :return: A tuple containing the trained model and the noise columns.
+    """Load a previously trained wind turbine emission model.
+
+    :param filepath: Optional path to the ``.skops`` model archive.
+    :type filepath: str | Path | None
+    :returns: Trained model and the list of noise column names.
+    :rtype: tuple[sklearn.base.RegressorMixin, list[str]]
+    :raises FileNotFoundError: If the model archive does not exist.
     """
 
     if filepath is None:
@@ -129,10 +134,15 @@ def load_model(filepath=None) -> Tuple[RegressorMixin, List[str]]:
 
 
 def check_wind_turbine_specs(wind_turbines: dict) -> dict:
-    """
-    Check that the dictionary contain all the needed keys.
-    :param wind_turbines: list of dictionaries with turbines specifics
-    :return: None or Exception
+    """Validate user-provided turbine specifications.
+
+    :param wind_turbines: Mapping of turbine identifiers to specification
+        dictionaries.
+    :type wind_turbines: dict
+    :returns: Normalised turbine specifications with numeric values.
+    :rtype: dict
+    :raises KeyError: If a required field is missing.
+    :raises ValueError: If numeric fields are invalid or positions are malformed.
     """
 
     mandatory_fields = ["power", "diameter", "hub height", "position"]
@@ -196,9 +206,7 @@ def check_wind_turbine_specs(wind_turbines: dict) -> dict:
 
 
 class WindTurbines:
-    """
-    This class models a wind turbine and predicts noise levels based on wind speed.
-    """
+    """Manage wind turbine specifications and noise emission predictions."""
 
     def __init__(
         self,
@@ -211,21 +219,23 @@ class WindTurbines:
         humidity: int = 70,
         temperature: int = 10,
     ):
-        """
-        Initializes the WindTurbines object.
-        :param model_file: if specified, another model than the default one is used.
-        :type model_file: str
-        :param dataset_file: if specified, the model is retrained using the given dataset.
-        :type dataset_file: str
-        :param wind_turbines: A dictionary containing the wind turbine specifications.
+        """Initialise the wind turbine manager and predict noise emissions.
+
+        :param wind_turbines: Turbine specifications keyed by identifier.
         :type wind_turbines: dict
-        :param retrain_model: If True, the model is retrained using the dataset file.
+        :param model_file: Alternative ``.skops`` model archive to load.
+        :type model_file: str | None
+        :param retrain_model: When ``True`` retrain the model using ``dataset_file``.
         :type retrain_model: bool
-        :param wind_speed_data: A xarray.DataArray containing the wind speed data.
-        :type wind_speed_data: xr.DataArray
-        :param humidity: The relative humidity in percent. Default is 70.
+        :param dataset_file: CSV dataset used for retraining the model.
+        :type dataset_file: str | None
+        :param wind_speed_data: Hourly wind speed dataset or path to a NetCDF file.
+        :type wind_speed_data: xarray.DataArray | str | None
+        :param elevation_data: Elevation dataset or path used during propagation.
+        :type elevation_data: xarray.DataArray | str | None
+        :param humidity: Relative humidity expressed as a percentage.
         :type humidity: int
-        :param temperature: The temperature in degrees Celsius. Default is 10.
+        :param temperature: Air temperature in degrees Celsius.
         :type temperature: int
         """
 
@@ -248,14 +258,7 @@ class WindTurbines:
 
 
     def fetch_noise_level_vs_wind_speed(self):
-        """
-        Predicts noise levels based on turbine specifications for
-        multiple turbines. Noise levels are predicted for wind speeds
-        in the range of 3 to 12 m/s, expressed in dBa.
-
-        :return: A DataFrame containing the noise predictions
-        for each turbine.
-        """
+        """Predict emission spectra for wind speeds between 3 and 12 m/s."""
 
         # create xarray that stores the parameters for the list
         # of wind turbines passed by the user
@@ -295,9 +298,7 @@ class WindTurbines:
             specs["noise_vs_wind_speed"] = arr.loc[dict(turbine=turbine)]
 
     def plot_noise_curve(self):
-        """
-        Plots noise levels for all wind speeds between 3 and 12 m/s.
-        """
+        """Plot modelled noise levels for all turbines and wind speeds."""
 
         # Different line styles and markers
         line_styles = ["-", "--", "-.", ":"]
@@ -326,13 +327,11 @@ class WindTurbines:
         plt.show()
 
     def fetch_wind_speeds(self, wind_speed_data: xr.DataArray | str = None):
-        """
-        Fetches the wind speed data. Either the wind speed data is provided
-        as an argument to the constructor, or it is loaded from
-        dev/fixtures/era5_mean_2013-2022_month_by_hour.nc
-        or, as a last resort, it is downloaded from the internet.
+        """Attach hourly wind speed profiles to each turbine specification.
 
-        :return: Updated wind_turbines with wind speed data.
+        :param wind_speed_data: Precomputed dataset or path used to initialise
+            :class:`windwhisper.windspeed.WindSpeed`.
+        :type wind_speed_data: xarray.DataArray | str | None
         """
 
         self.wind_turbines = WindSpeed(

@@ -9,14 +9,12 @@ import xarray as xr
 
 
 def get_population_subset(bbox: box):
-    """
-    Fast version for EPSG:4326 (lat/lon) NetCDF: slices lat/lon bounding box directly.
+    """Extract population data within the requested bounding box.
 
-    Parameters:
-        lat_min, lat_max, lon_min, lon_max (float): Bounding box in degrees
-
-    Returns:
-        xarray.DataArray: Subset of population data within the bounding box
+    :param bbox: Bounding box in geographic coordinates (EPSG:4326).
+    :type bbox: shapely.geometry.Polygon
+    :returns: Population raster subset covering the bounding box.
+    :rtype: xarray.DataArray
     """
 
     lon_min, lat_min, lon_max, lat_max = bbox.bounds

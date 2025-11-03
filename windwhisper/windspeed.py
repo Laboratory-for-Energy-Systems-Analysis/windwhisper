@@ -19,12 +19,16 @@ FIXTURE_DIR = Path(__file__).parent.parent / "dev" / "fixtures"
 
 
 def load_wind_speed_data(filepath_wind_speed: Path, filepath_correction: Path = None, array: xr.DataArray = None) -> xr.DataArray:
-    """
-    Load the wind speed data from a file, or from a xarray.DataArray if provided.
-    :param filepath_wind_speed: Filepath to the wind speed data.
-    :param filepath_correction: Filepath to the correction data.
-    :param array: A xarray.DataArray containing the wind speed data. If provided, the filepaths are ignored.
-    :return: A xarray.DataArray containing the wind speed data.
+    """Load hourly mean wind speed fields from disk or an array.
+
+    :param filepath_wind_speed: Path to the ERA5 mean wind speed NetCDF file.
+    :type filepath_wind_speed: Path
+    :param filepath_correction: Optional correction factor NetCDF file.
+    :type filepath_correction: Path | None
+    :param array: In-memory wind speed dataset bypassing file loading.
+    :type array: xarray.DataArray | None
+    :returns: Hourly mean wind speed data indexed by latitude, longitude and height.
+    :rtype: xarray.DataArray
     """
     if array is not None:
         return array
@@ -39,14 +43,16 @@ def load_wind_speed_data(filepath_wind_speed: Path, filepath_correction: Path = 
 
 
 def _download_single_turbine_data(name, turbine):
-    """
-    Downloads data for a single wind turbine, with retry logic in case of failure.
+    """Download wind speed data for a single turbine location.
 
-    Args:
-        turbine (dict): Dictionary containing the wind turbine's data.
-
-    Returns:
-        xarray.Dataset: Dataset containing the downloaded data.
+    :param name: Turbine identifier used for logging.
+    :type name: str
+    :param turbine: Turbine specification containing a ``position`` tuple.
+    :type turbine: dict
+    :returns: Simplified dataset containing the ``WS10`` variable and the
+        download size in kilobytes.
+    :rtype: tuple[xarray.Dataset, float]
+    :raises Exception: If the download fails after the configured attempts.
     """
     latitude = turbine["position"][0]
     longitude = turbine["position"][1]
@@ -93,6 +99,13 @@ def _download_single_turbine_data(name, turbine):
 
 
 def download_data(wind_turbines) -> xr.DataArray:
+    """Fetch NEWA wind speed datasets for all turbines concurrently.
+
+    :param wind_turbines: Turbine specifications keyed by identifier.
+    :type wind_turbines: dict
+    :returns: Concatenated dataset indexed by turbine and time.
+    :rtype: xarray.DataArray
+    """
     print("Starting concurrent data download for all turbines...")
     total_download_size_kb = 0  # Initialize total download size
 
@@ -132,19 +145,20 @@ def download_data(wind_turbines) -> xr.DataArray:
 
 
 class WindSpeed:
-    """
-    This class handles the basic functionalities related to wind data loading.
-
-    :ivar wind_turbines: A list of dictionaries containing the wind turbine data.
-    :ivar wind_speed: A xarray.DataArray containing the wind speed data.
-
-    """
+    """Load wind speed data and derive turbine-specific mean profiles."""
 
     def __init__(
             self,
             wind_turbines: dict,
             wind_speed_data: xr.DataArray | None = None
     ):
+        """Initialise the wind speed loader and compute mean profiles.
+
+        :param wind_turbines: Turbine specifications keyed by identifier.
+        :type wind_turbines: dict
+        :param wind_speed_data: Pre-loaded wind speed dataset to reuse.
+        :type wind_speed_data: xarray.DataArray | None
+        """
         self.wind_turbines = wind_turbines
         try:
             self.wind_speed = load_wind_speed_data(
@@ -158,10 +172,7 @@ class WindSpeed:
         self.calculate_mean_speed()
 
     def calculate_mean_speed(self) -> None:
-        """
-        Calculate the mean wind speed for each turbine, for each hour of the day.
-        :return: Nothing. Populates the `mean_wind_speed` key of self.wind_turbines.
-        """
+        """Populate each turbine with an hourly mean wind speed profile."""
 
         for turbine, specs in self.wind_turbines.items():
             height = specs["hub height"]

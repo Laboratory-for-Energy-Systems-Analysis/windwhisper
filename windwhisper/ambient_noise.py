@@ -40,7 +40,30 @@ PIXEL_VALUE_TO_LDEN = {
 }
 
 
-def get_noise_values(url: str, x_min, x_max, y_min, y_max, resolution) -> xr.DataArray | None:
+def get_noise_values(url: str, x_min, x_max, y_min, y_max, resolution) -> np.ndarray | None:
+    """Fetch an EU noise raster for the requested bounding box.
+
+    The EU services accept bounding boxes in the European LAEA CRS (EPSG:3035).
+    The raster is requested as a GeoTIFF and converted to Lden or Lnight values
+    according to the ``PIXEL_VALUE_TO_LDEN`` lookup table.
+
+    :param url: Service endpoint returning the GeoTIFF noise map.
+    :type url: str
+    :param x_min: Minimum easting of the bounding box in EPSG:3035.
+    :type x_min: float
+    :param x_max: Maximum easting of the bounding box in EPSG:3035.
+    :type x_max: float
+    :param y_min: Minimum northing of the bounding box in EPSG:3035.
+    :type y_min: float
+    :param y_max: Maximum northing of the bounding box in EPSG:3035.
+    :type y_max: float
+    :param resolution: Grid resolution as ``(rows, columns)``.
+    :type resolution: tuple[int, int]
+    :returns: Raster values converted to Lden/Lnight when the request succeeds
+        or ``None`` when the remote service responds with an error.
+    :rtype: numpy.ndarray | None
+    """
+
     params = {
         "bbox": f"{x_min},{y_min},{x_max},{y_max}",
         "bboxSR": "3035",
@@ -49,29 +72,27 @@ def get_noise_values(url: str, x_min, x_max, y_min, y_max, resolution) -> xr.Dat
         "f": "image"  # Response type
     }
 
-    # Fetch the GeoTIFF file
     response = requests.get(url, params=params)
-
-    if response.status_code == 200:
-        # Use a memory file to avoid saving to disk
-        with MemoryFile(response.content) as memfile:
-            with memfile.open() as dataset:
-                # Read the first band of data
-                data = dataset.read(1)
-                data = np.nan_to_num(data, nan=15)  # Replace NaN values with 15
-                data = np.vectorize(lambda x: PIXEL_VALUE_TO_LDEN.get(x, 0))(data)
-                return data
-    else:
+    if response.status_code != 200:
         print(f"Failed to fetch data: {response.status_code}")
         return None
 
+    with MemoryFile(response.content) as memfile:
+        with memfile.open() as dataset:
+            data = dataset.read(1)
+            data = np.nan_to_num(data, nan=15)
+            data = np.vectorize(lambda x: PIXEL_VALUE_TO_LDEN.get(x, 0))(data)
+            return data
+
 
 def combine_noise_levels(noise_layers: list) -> np.ndarray:
-    """
-    Combine noise levels from multiple sources in Lden.
-    :param noise_layers: A list of numpy arrays with noise levels in Lden.
-    :return: A numpy array with the combined noise levels in Lden.
+    """Combine multiple Lden/Lnight rasters into a single layer.
 
+    :param noise_layers: Collection of rasters to combine. ``None`` elements are
+        ignored.
+    :type noise_layers: list[numpy.ndarray | None]
+    :returns: Combined Lden/Lnight raster in dB.
+    :rtype: numpy.ndarray
     """
     # Convert Lden to linear scale
     linear_sum = np.sum([10 ** (layer / 10) for layer in noise_layers if layer is not None], axis=0)
@@ -83,13 +104,18 @@ def combine_noise_levels(noise_layers: list) -> np.ndarray:
 
 
 def get_ambient_noise_levels(latitudes, longitudes, resolution: tuple, lden=True) -> xr.DataArray | None:
-    """
-    Get the ambient noise levels for a given location.
-    :param lon_min: Minimum longitude of the bounding box.
-    :param lon_max: Maximum longitude of the bounding box.
-    :param lat_min: Minimum latitude of the bounding box.
-    :param lat_max: Maximum latitude of the bounding box.
-    :return: A numpy array with the ambient noise levels in Lden.
+    """Retrieve the combined ambient noise level for a target grid.
+
+    :param latitudes: Latitude coordinates defining the output grid.
+    :type latitudes: numpy.ndarray
+    :param longitudes: Longitude coordinates defining the output grid.
+    :type longitudes: numpy.ndarray
+    :param resolution: Output resolution expressed as ``(rows, columns)``.
+    :type resolution: tuple[int, int]
+    :param lden: When ``True`` request Lden rasters, otherwise request Lnight.
+    :type lden: bool
+    :returns: Ambient noise interpolated on the requested grid.
+    :rtype: xarray.DataArray | None
     """
 
     noise_layers = []
@@ -123,15 +149,20 @@ def get_ambient_noise_levels(latitudes, longitudes, resolution: tuple, lden=True
 
 
 def create_xarray_from_raster(data, x_min, x_max, y_min, y_max):
-    """
-    Create an xarray.DataArray from raster data and transform coordinates to EPSG:4326.
+    """Convert a raster array into an ``xarray.DataArray`` in EPSG:4326.
 
-    :param data: The raster data as a numpy array.
-    :param lon_min: Minimum longitude of the bounding box.
-    :param lon_max: Maximum longitude of the bounding box.
-    :param lat_min: Minimum latitude of the bounding box.
-    :param lat_max: Maximum latitude of the bounding box.
-    :return: Raster data as an xarray with longitude and latitude coordinates in EPSG:4326.
+    :param data: Raster values in an evenly spaced grid in EPSG:3035.
+    :type data: numpy.ndarray
+    :param x_min: Minimum easting of the bounding box in EPSG:3035.
+    :type x_min: float
+    :param x_max: Maximum easting of the bounding box in EPSG:3035.
+    :type x_max: float
+    :param y_min: Minimum northing of the bounding box in EPSG:3035.
+    :type y_min: float
+    :param y_max: Maximum northing of the bounding box in EPSG:3035.
+    :type y_max: float
+    :returns: Raster with latitude/longitude coordinates.
+    :rtype: xarray.DataArray
     """
 
     # Calculate the original x and y coordinates in EPSG:3035
