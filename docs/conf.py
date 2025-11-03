@@ -1,31 +1,24 @@
-# -- Path setup --------------------------------------------------------------
 from __future__ import annotations
-import os
 import sys
 from pathlib import Path
 
-# Only add the *project root* to sys.path (not the package dir)
+# ---- Path setup: add PROJECT ROOT only (not the package dir) ----
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT))
 
-# -- Project information -----------------------------------------------------
-# Keep this import light; don't import heavy submodules at package import time
-try:
-    from importlib.metadata import version, PackageNotFoundError  # py3.8+
-except Exception:  # pragma: no cover
-    version = None
-    PackageNotFoundError = Exception
-
+# ---- Project info ----
 project = "windwhisper"
 author = "Windwhisper contributors"
 
+# Avoid naming collision with importlib.metadata.version
 try:
-    release = version("windwhisper")
-except PackageNotFoundError:
+    from importlib.metadata import version as _pkg_version, PackageNotFoundError
+    release = _pkg_version("windwhisper")
+except Exception:
+    # Fallback during RTD cold builds if package isn't yet importable
     release = "0.0.0"
 
-# -- General configuration ---------------------------------------------------
+# ---- General config ----
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -41,7 +34,7 @@ autodoc_default_options = {
     "show-inheritance": True,
 }
 
-# Mock heavy/optional runtime deps so autosummary can import your package
+# Mock heavy/optional deps to let imports succeed during docs build
 autodoc_mock_imports = [
     "numpy", "scipy", "pandas", "matplotlib",
     "shapely", "geopandas", "rasterio", "pyproj",
@@ -50,6 +43,4 @@ autodoc_mock_imports = [
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# -- Options for HTML output -------------------------------------------------
-# Use the default theme (keeps requirements simple). If you prefer RTD theme:
-# html_theme = "sphinx_rtd_theme"
+# html_theme = "sphinx_rtd_theme"  # uncomment if you want RTD theme

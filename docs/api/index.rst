@@ -1,14 +1,12 @@
 API reference
 =============
 
-The API documentation is generated automatically from the source code. Each
-module section lists the public classes and functions that make up the core
-workflow.
-
 .. autosummary::
-   :toctree: generated
+   :toctree: _autosummary
    :recursive:
+   :nosignatures:
 
+   windwhisper
    windwhisper.ambient_noise
    windwhisper.atmospheric_absorption
    windwhisper.electricity_production

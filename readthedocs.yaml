@@ -6,6 +6,7 @@ build:
     python: "3.10"
   jobs:
     post_checkout:
+      # Safe even if you don't use setuptools-scm; helps if you do.
       - git fetch --unshallow || true
 
 sphinx:
@@ -13,6 +14,6 @@ sphinx:
 
 python:
   install:
-    - requirements: docs/requirements.txt
+    - requirements: docs/requirements.txt   # install doc deps
     - method: pip
-      path: .
+      path: .                               # install your package
