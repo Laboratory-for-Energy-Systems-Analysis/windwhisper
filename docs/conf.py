@@ -37,10 +37,10 @@ napoleon_use_param = True
 napoleon_use_rtype = True
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", {}),
-    "numpy": ("https://numpy.org/doc/stable", {}),
-    "pandas": ("https://pandas.pydata.org/docs", {}),
-    "xarray": ("https://docs.xarray.dev/en/stable", {}),
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable", None),
+    "pandas": ("https://pandas.pydata.org/docs", None),
+    "xarray": ("https://docs.xarray.dev/en/stable", None),
 }
 
 # Mock heavy scientific dependencies so the documentation can build without
