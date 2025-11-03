@@ -12,6 +12,10 @@ it is best to install from Github using ``pip``:
   pip install git+https://github.com/Laboratory-for-Energy-Systems-Analysis/windwhisper.git
 ```
 
+## Documentation
+The documentation for ``windwhisper`` can be found at
+https://windwhisper.readthedocs.io/en/latest.
+
 ## Usage
 
 ``windwhisper`` can be used to estimate the noise propagation from wind turbines and
