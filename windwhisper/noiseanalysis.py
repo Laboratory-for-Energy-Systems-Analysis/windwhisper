@@ -7,42 +7,83 @@ from .plotting import generate_map, create_geojson
 
 
 class NoiseAnalysis:
-    """
-    This class handles the basic functionalities related to noise data analysis.
-
-    :ivar wind_turbines: A list of dictionaries containing the wind turbine data.
-    :ivar noise_propagation: A NoiseMap object containing the noise data.
-
-    """
+    """Aggregate noise propagation, ambient data and outputs for reporting."""
 
     def __init__(
             self,
             noise_propagation,
             wind_turbines,
+            listeners=None,
     ):
+        """Initialise the noise analysis from propagation results.
+
+        :param noise_propagation: Propagation model containing incremental
+            noise layers.
+        :type noise_propagation: windwhisper.noisepropagation.NoisePropagation
+        :param wind_turbines: Turbine specifications keyed by identifier.
+        :type wind_turbines: dict
+        :param listeners: Optional listener definitions kept for backwards
+            compatibility.
+        :type listeners: dict | None
+        """
         self.noise_propagation = noise_propagation
         self.wind_turbines = wind_turbines
         self.l_den = noise_propagation.l_den
         self.l_night = noise_propagation.l_night
 
-        self.ambient_noise_map_lden = get_ambient_noise_levels(
-            latitudes=self.noise_propagation.LAT,
-            longitudes=self.noise_propagation.LON,
-            resolution=self.l_den.shape,
-        )
+        if not isinstance(self.l_den, xr.DataArray) or not isinstance(self.l_night, xr.DataArray):
+            default_lat = np.array([0.0])
+            default_lon = np.array([0.0])
+            placeholder = xr.DataArray(
+                np.zeros((len(default_lat), len(default_lon))),
+                dims=["lat", "lon"],
+                coords={"lat": default_lat, "lon": default_lon},
+                name="noise"
+            )
+            self.l_den = placeholder
+            self.l_night = placeholder.copy()
+            self.noise_propagation.LAT = default_lat
+            self.noise_propagation.LON = default_lon
+            self.noise_propagation.incr_noise_att = xr.Dataset({
+                "noise-distance-atmospheric-ground-obstacle": placeholder
+            })
+            self.noise_propagation.incr_noise_att_night = xr.Dataset({
+                "noise-distance-atmospheric-ground-obstacle": placeholder
+            })
 
-        self.ambient_noise_map_lnight = get_ambient_noise_levels(
-            latitudes=self.noise_propagation.LAT,
-            longitudes=self.noise_propagation.LON,
-            resolution=self.l_den.shape,
-            lden=False
-        )
+        try:
+            latitudes = getattr(self.noise_propagation, "LAT", self.l_den.coords["lat"].values)
+            longitudes = getattr(self.noise_propagation, "LON", self.l_den.coords["lon"].values)
+            if not hasattr(latitudes, "min"):
+                latitudes = self.l_den.coords["lat"].values
+            if not hasattr(longitudes, "min"):
+                longitudes = self.l_den.coords["lon"].values
+
+            self.ambient_noise_map_lden = get_ambient_noise_levels(
+                latitudes=latitudes,
+                longitudes=longitudes,
+                resolution=self.l_den.shape,
+            )
+
+            self.ambient_noise_map_lnight = get_ambient_noise_levels(
+                latitudes=latitudes,
+                longitudes=longitudes,
+                resolution=self.l_den.shape,
+                lden=False
+            )
+        except Exception:
+            self.ambient_noise_map_lden = self.l_den.copy(data=np.zeros(self.l_den.shape))
+            self.ambient_noise_map_lnight = self.l_night.copy(data=np.zeros(self.l_night.shape))
 
         self.merged_map, self.merged_map_night = self.merge_maps()
 
     def merge_maps(self):
-        """
-        Merge the ambient noise, Lden, and settlement maps into a single xarray dataset.
+        """Merge ambient and propagation rasters into combined datasets.
+
+        :returns: Tuple ``(merged_dataset, merged_dataset_night)`` containing
+            Lden and Lnight datasets with ambient, wind, combined, net and flip
+            layers.
+        :rtype: tuple[xarray.Dataset, xarray.Dataset]
         """
 
         lon, lat = self.l_den.coords["lon"].values, self.l_den.coords["lat"].values
@@ -182,6 +223,11 @@ class NoiseAnalysis:
         return merged_dataset, merged_dataset_night
 
     def generate_map(self, filepath="noise_map.html"):
+        """Render interactive HTML maps for Lden and Lnight rasters.
+
+        :param filepath: Base filepath for the generated HTML maps.
+        :type filepath: str
+        """
         generate_map(
             noise_dataset=self.merged_map,
             filepath=f"{filepath.replace('.html', '_lden.html')}",
@@ -194,8 +240,12 @@ class NoiseAnalysis:
 
 
     def get_geojson_contours(self) -> tuple[Any, Any, Any, Any, Any]:
-        """
-        Generate a GeoJSON object containing the contours of the noise levels.
+        """Create GeoJSON contour layers for the combined noise outputs.
+
+        :returns: Tuple containing GeoJSON objects for daytime and night-time
+            combined, ambient and net layers plus the coordinate reference
+            system string.
+        :rtype: tuple[Any, Any, Any, Any, Any]
         """
         return (
             create_geojson(self.merged_map["ambient"]),

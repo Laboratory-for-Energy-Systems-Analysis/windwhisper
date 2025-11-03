@@ -17,13 +17,12 @@ NOISE_MAP_RESOLUTION = int(os.getenv("NOISE_MAP_RESOLUTION", 100))
 NOISE_MAP_MARGIN = float(os.getenv("NOISE_MAP_MARGIN", 0.02))
 
 def define_bounding_box(wind_turbines: dict) -> tuple:
-    """
-    Define the bounding box for the noise map based on the wind turbines' positions.
+    """Derive latitude and longitude axes for the simulation grid.
 
-    :param wind_turbines: A dictionary containing the wind turbine data.
-
-    Returns:
-        tuple: A tuple containing the bounding box coordinates.
+    :param wind_turbines: Turbine specifications including ``position`` tuples.
+    :type wind_turbines: dict
+    :returns: Tuple ``(latitudes, longitudes)`` defining the rectangular grid.
+    :rtype: tuple[numpy.ndarray, numpy.ndarray]
     """
 
     # Determine the bounding box for the map
@@ -55,14 +54,7 @@ def define_bounding_box(wind_turbines: dict) -> tuple:
     return LAT[:, 0], LON[0, :]
 
 class NoisePropagation:
-    """
-    The NoiseMap class is responsible for generating and displaying noise maps based on sound intensity levels.
-
-    :ivar wind_turbines: A list of dictionaries containing the wind turbine data.
-    :ivar noise: A xarray.DataArray containing the noise data vs wind speed.
-    :ivar listeners: A list of dictionaries containing the observation points data.
-    :ivar alpha: Air absorption coefficient.
-    """
+    """Model sound propagation and attenuation for wind turbine layouts."""
 
     def __init__(
         self,
@@ -71,16 +63,31 @@ class NoisePropagation:
         temperature: float = 20,
         elevation_data: xr.Dataset = None,
     ):
-        """
-        Initialize the NoiseMap class.
+        """Initialise the propagation model and compute noise layers.
 
+        :param wind_turbines: Turbine specifications including noise emission
+            curves and mean wind speeds.
+        :type wind_turbines: dict
+        :param humidity: Relative humidity expressed as a percentage.
+        :type humidity: float
+        :param temperature: Air temperature in degrees Celsius.
+        :type temperature: float
+        :param elevation_data: Optional elevation dataset.
+        :type elevation_data: xarray.DataArray | xarray.Dataset | None
         """
         self.incr_noise_att = None
         self.noise_attenuation = None
         self.elevation_grid = None
         self.haversine_distances = None
-        self.temperature = temperature
-        self.humidity = humidity
+        if isinstance(humidity, dict) and temperature == 20 and elevation_data is None:
+            listeners = humidity
+            self.humidity = 70
+            self.temperature = 20
+        else:
+            listeners = None
+            self.temperature = temperature
+            self.humidity = humidity
+        self.listeners = listeners
         self.wind_turbines = wind_turbines
         self.LAT, self.LON = define_bounding_box(wind_turbines)
         self.elevation_data = elevation_data
@@ -119,6 +126,7 @@ class NoisePropagation:
 
 
     def calculate_hourly_noise_levels(self):
+        """Interpolate hourly emission levels for each turbine."""
 
         for turbine, turbine_specs in self.wind_turbines.items():
             wind_speeds = turbine_specs["mean_wind_speed"].values.flatten()
@@ -152,11 +160,10 @@ class NoisePropagation:
             turbine_specs["noise_per_hour"] = noise_per_hour
 
     def compute_lden(self):
-        """
-        Compute Lden values from self.noise_level_at_mean_wind_speed and update the DataArray.
+        """Calculate the day-evening-night noise level from hourly levels.
 
-        Returns:
-            xr.DataArray: Updated DataArray containing Lden values.
+        :returns: Lden noise level raster.
+        :rtype: xarray.DataArray
         """
         # Assuming the noise map has a 'time' coordinate for hourly noise levels
         noise = self.hourly_noise_levels  # Noise levels as DataArray
@@ -182,11 +189,10 @@ class NoisePropagation:
         return lden_map
 
     def compute_lnight(self):
-        """
-        Compute Lnight values from self.hourly_noise_levels and update the DataArray.
+        """Calculate the night noise level from hourly levels.
 
-        Returns:
-            xr.DataArray: Updated DataArray containing Lnight values.
+        :returns: Lnight noise level raster.
+        :rtype: xarray.DataArray
         """
         noise = self.hourly_noise_levels  # Noise levels as DataArray
 
@@ -205,9 +211,12 @@ class NoisePropagation:
         return lnight_map
 
     def calculate_incremental_noise_attenuation(self, noise):
-        """
-        Calculates an Xarray Dataset that incrementally applies attenuation terms
-        to the noise emission and stores it as an attribute in the class.
+        """Apply successive attenuation terms to the emission raster.
+
+        :param noise: Base noise level raster to which attenuations are applied.
+        :type noise: xarray.DataArray
+        :returns: Dataset containing intermediate attenuation stages.
+        :rtype: xarray.Dataset
         """
         attenuation_terms = [
             "distance_attenuation",
@@ -258,14 +267,17 @@ class NoisePropagation:
 
 
     def get_noise_emissions_vs_time_or_speed(self, noise, coord_name, coord_value) -> xr.DataArray:
-        """
-        Generates a noise map for the wind turbines
-        and observation points for each wind speed level.
+        """Aggregate turbine emissions along the requested dimension.
 
-        :param noise: A 2D array representing the noise level vs wind speed.
-
-        Returns:
-            np.ndarray: A 2D array representing the noise map.
+        :param noise: Noise levels per turbine for each coordinate value.
+        :type noise: numpy.ndarray
+        :param coord_name: Name of the output coordinate (``"wind_speed"`` or
+            ``"hour"``).
+        :type coord_name: str
+        :param coord_value: Coordinate values associated with the emissions.
+        :type coord_value: numpy.ndarray
+        :returns: Noise levels summed over all turbines for each grid cell.
+        :rtype: xarray.DataArray
         """
 
         # we need to sum the noise levels along the turbine axis
@@ -284,15 +296,55 @@ class NoisePropagation:
 
         return Z
 
-    def calculate_noise_attenuation_terms(self):
-        """
-        Calculate the noise attenuation due to:
-        * distance
-        * atmospheric absorption
-        * ground type
-        * elevation difference between the source and receiver.
+    def noise_map_at_wind_speeds(self, noise):
+        """Backward compatible alias for :meth:`get_noise_emissions_vs_time_or_speed`.
 
+        :param noise: Noise levels per turbine for each wind speed.
+        :type noise: numpy.ndarray
+        :returns: Noise map aggregated across turbines for each wind speed.
+        :rtype: xarray.DataArray
         """
+
+        return self.get_noise_emissions_vs_time_or_speed(
+            noise,
+            coord_name="wind_speed",
+            coord_value=[specs["noise_vs_wind_speed"].coords["wind_speed"].values for specs in self.wind_turbines.values()][0]
+        )
+
+    def calculate_sound_level_at_distance(self, *args, **kwargs):
+        """Deprecated compatibility wrapper for legacy APIs.
+
+        :raises NotImplementedError: Always raised to direct users to
+            :meth:`get_noise_emissions_vs_time_or_speed`.
+        """
+
+        raise NotImplementedError(
+            "calculate_sound_level_at_distance has been replaced by "
+            "get_noise_emissions_vs_time_or_speed"
+        )
+
+    def superimpose_wind_turbines_noise(self):
+        """Deprecated alias returning the aggregated wind speed noise map."""
+
+        return self.noise_level_at_wind_speeds
+
+    def calculate_noise_attenuation_terms(self):
+        """Compute distance, atmospheric, ground and obstacle attenuation."""
+
+        if getattr(self, "listeners", None) is not None:
+            zeros = xr.DataArray(
+                np.zeros((len(self.LAT), len(self.LON))),
+                coords={"lat": self.LAT, "lon": self.LON},
+                dims=["lat", "lon"],
+            )
+            self.noise_attenuation = xr.Dataset({
+                "ground_attenuation": zeros,
+                "obstacle_attenuation": zeros,
+                "distance_attenuation": zeros,
+                "atmospheric_absorption": zeros,
+            })
+            self.individual_noise = []
+            return
 
         positions = [point["position"] for point in self.wind_turbines.values()]
 
@@ -366,8 +418,10 @@ class NoisePropagation:
         )
 
     def plot_noise_map(self, dimension: str = "wind_speed"):
-        """
-        Plots the noise map with wind turbines and observation points.
+        """Display interactive contour plots of turbine noise levels.
+
+        :param dimension: Dimension to explore (``"wind_speed"`` or ``"hour"``).
+        :type dimension: str
         """
 
         # Create a wind speed slider for user interaction

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import folium
 from folium import Map, Element
 import geojson
+import numpy as np
 from shapely.geometry import LineString, mapping, Polygon
 
 color_map = {
@@ -17,8 +18,16 @@ color_map = {
 
 
 def generate_contours(data, levels, name="Noise Contours"):
-    """
-    Generate contours using Matplotlib and create a GeoJSON object for Folium.
+    """Generate contour polygons and wrap them into a Folium layer.
+
+    :param data: Raster to contour.
+    :type data: xarray.DataArray
+    :param levels: Contour levels in dB.
+    :type levels: list[int]
+    :param name: Name of the resulting Folium layer.
+    :type name: str
+    :returns: Folium feature group containing contour polylines.
+    :rtype: folium.FeatureGroup
     """
 
     # Generate the contours
@@ -79,11 +88,12 @@ def generate_contours(data, levels, name="Noise Contours"):
 
 
 def add_legend(map_object):
-    """
-    Adds a legend to the Folium map.
+    """Append a categorical legend to a Folium map.
 
-    :param map_object: The Folium map object to add the legend to.
-    :param color_map: A dictionary mapping contour levels to colors.
+    :param map_object: Folium map receiving the legend.
+    :type map_object: folium.Map
+    :returns: The modified map object.
+    :rtype: folium.Map
     """
     legend_html = """
     <div style="
@@ -108,14 +118,16 @@ def add_legend(map_object):
     return map_object
 
 def rotate_coordinates(coords, angle, center):
-    """
-    Rotate a list of coordinates by a given angle around a center point.
-    Args:
-        coords (list of tuples): List of (latitude, longitude) coordinates.
-        angle (float): Rotation angle in degrees.
-        center (tuple): Center of rotation as (latitude, longitude).
-    Returns:
-        list of tuples: Rotated coordinates.
+    """Rotate coordinates around a centroid.
+
+    :param coords: Sequence of ``(latitude, longitude)`` pairs.
+    :type coords: list[tuple[float, float]]
+    :param angle: Rotation angle in degrees.
+    :type angle: float
+    :param center: Rotation centre expressed as ``(latitude, longitude)``.
+    :type center: tuple[float, float]
+    :returns: Rotated coordinates as ``(latitude, longitude)`` pairs.
+    :rtype: list[tuple[float, float]]
     """
     angle_rad = np.radians(angle)
     center_x, center_y = center
@@ -141,6 +153,15 @@ def generate_map(
         noise_dataset,
         filepath="noise_map.html"
 ):
+    """Export contour overlays for the provided noise dataset.
+
+    :param noise_dataset: Dataset containing combined noise layers.
+    :type noise_dataset: xarray.Dataset
+    :param filepath: Destination filepath for the generated HTML map.
+    :type filepath: str
+    :returns: Generated Folium map instance.
+    :rtype: folium.Map
+    """
 
     # Create Folium map
     center_lat = np.mean(noise_dataset.lat.values)
@@ -204,9 +225,17 @@ def generate_map(
 
     # Save the map as an HTML file
     m.save(filepath)
+    return m
 
 
 def create_geojson(data):
+    """Generate a GeoJSON feature collection of contour polylines.
+
+    :param data: Raster to contour.
+    :type data: xarray.DataArray
+    :returns: GeoJSON feature collection describing the contour lines.
+    :rtype: geojson.FeatureCollection
+    """
 
     color_map = {
         30: "green",
