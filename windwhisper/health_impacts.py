@@ -16,13 +16,23 @@ from .electricity_production import get_electricity_production, get_capacity_fac
 
 
 def load_human_health_parameters() -> dict:
-    """
-    Load human health parameters from a JSON file.
+    """Load DALY parameter curves from the packaged JSON file.
+
+    :returns: Mapping of health impact identifiers to parameter sets.
+    :rtype: dict
     """
     with open(DATA_DIR / "health_parameters.json", "r") as f:
         return json.load(f)
 
-def load_disease_data(country) -> Any | None:
+def load_disease_data(country) -> pd.DataFrame:
+    """Return disease burden statistics for the requested country.
+
+    :param country: ISO alpha-2 code identifying the country of interest.
+    :type country: str
+    :returns: DataFrame limited to the requested country or the European
+        baseline when no data is available.
+    :rtype: pandas.DataFrame
+    """
     df = pd.read_csv(DATA_DIR / "data_diseases_europe.csv", sep=",")
     if country in df["country_short"].unique():
         return df.loc[df["country_short"] == country, :]
@@ -34,8 +44,13 @@ def load_disease_data(country) -> Any | None:
         return df.loc[df["country_long"] == "European Region", :]
 
 def guess_country(bbox_geom) -> tuple[str, float]:
-    """
-    Returns the country (ISO_A2 code, POP_EST) corresponding to the bounding box geometry.
+    """Infer the country overlapping the analysis bounding box.
+
+    :param bbox_geom: Bounding box geometry in EPSG:4326 coordinates.
+    :type bbox_geom: shapely.geometry.base.BaseGeometry
+    :returns: Tuple containing the ISO alpha-2 code and the estimated
+        population of the matching country.
+    :rtype: tuple[str, float]
     """
     # Load world polygons
     world = gpd.read_file(DATA_DIR / "ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp")
@@ -68,13 +83,15 @@ def guess_country(bbox_geom) -> tuple[str, float]:
 geod = Geod(ellps="WGS84")
 
 def approximate_grid_cell_areas(lat, lon):
-    """
-    Compute area of each lat-lon cell (in m²) for a rectilinear grid.
-    Inputs:
-        lat (1D array): latitude coordinates
-        lon (1D array): longitude coordinates
-    Output:
-        area (2D array): (lat, lon) grid of cell areas in m²
+    """Approximate cell areas for a rectilinear latitude/longitude grid.
+
+    :param lat: One-dimensional latitude coordinates.
+    :type lat: numpy.ndarray
+    :param lon: One-dimensional longitude coordinates.
+    :type lon: numpy.ndarray
+    :returns: Two-dimensional array containing the area of each grid cell in
+        square metres.
+    :rtype: numpy.ndarray
     """
     lat = np.asarray(lat)
     lon = np.asarray(lon)
@@ -107,7 +124,17 @@ def approximate_grid_cell_areas(lat, lon):
     return area  # shape (lat, lon)
 
 class HumanHealth:
+    """Evaluate human health impacts resulting from noise exposure."""
+
     def __init__(self, noiseanalysis: NoiseAnalysis, lifetime : int = 20):
+        """Initialise the human health model using a ``NoiseAnalysis`` output.
+
+        :param noiseanalysis: Completed noise analysis providing noise rasters
+            and turbine metadata.
+        :type noiseanalysis: windwhisper.noiseanalysis.NoiseAnalysis
+        :param lifetime: Expected lifetime of the project in years.
+        :type lifetime: int
+        """
         #self.l_den = noiseanalysis.merged_map["combined"]
         #self.l_night = noiseanalysis.merged_map_night["combined"]
         self.lifetime = lifetime
@@ -181,11 +208,13 @@ class HumanHealth:
         self,
         disease: str,
     ) -> tuple[float, float]:
-        """
-        Returns YLD and YLL for a given country and disease.
-        :param disease: Name of the disease (e.g., "ischemic_heart_disease", "diabetes", "stroke").
-        :return: Tuple of YLD and YLL values for the disease in the specified country.
-        :raises ValueError: If no data is found for the specified disease in the country.
+        """Return YLD and YLL totals for the active country.
+
+        :param disease: Disease identifier (e.g. ``"ischemic_heart_disease"``).
+        :type disease: str
+        :returns: Tuple containing the YLD and YLL values.
+        :rtype: tuple[float, float]
+        :raises ValueError: If no statistics are available for the disease.
         """
         row = self.disease_data.loc[
             self.disease_data["disease"].str.lower() == disease.lower()
@@ -198,15 +227,15 @@ class HumanHealth:
             self,
             lden: xr.DataArray,
             noise_type_ha: str
-    ) -> np.ndarray:
-        """
-        Calculate the Disability-Adjusted Life Years (DALYs) for highly annoyed individuals
-        based on the noise level (Lden) and the number of exposed individuals.
-        Applies a correction to avoid increasing DALYs at low Lden due to the shape of the quadratic fit.
+    ) -> xr.DataArray:
+        """Calculate DALYs for the highly annoyed indicator.
 
-        :param lden: Noise level in Lden (day-evening-night noise level).
-        :param noise_type_ha: Type of noise (e.g., "road_without_alpinestudies", "combined").
-        :return: DALYs for highly annoyed individuals.
+        :param lden: Day-evening-night noise level raster.
+        :type lden: xarray.DataArray
+        :param noise_type_ha: Human health parameter set identifier.
+        :type noise_type_ha: str
+        :returns: DALY raster for the highly annoyed population.
+        :rtype: xarray.DataArray
         """
         # Load parameters
         p = self.human_health_parameters["highly_annoyed"][noise_type_ha]
@@ -248,15 +277,15 @@ class HumanHealth:
             self,
             lnight: xr.DataArray,
             noise_type_hsd: str
-    ) -> np.ndarray:
-        """
-        Calculate the Disability-Adjusted Life Years (DALYs) for high sleep disorder
-        based on the noise level (Lnight) and the number of exposed individuals.
-        Applies a correction to avoid increasing DALYs at low Lnight due to the shape of the quadratic fit.
+    ) -> xr.DataArray:
+        """Calculate DALYs for the high sleep disorder indicator.
 
-        :param lnight: Noise level in Lnight (night noise level).
-        :param noise_type_hsd: Type of noise (e.g., "combined", "road_without_alpinestudies").
-        :return: DALYs for high sleep disorder.
+        :param lnight: Night noise level raster.
+        :type lnight: xarray.DataArray
+        :param noise_type_hsd: Human health parameter set identifier.
+        :type noise_type_hsd: str
+        :returns: DALY raster for the high sleep disorder population.
+        :rtype: xarray.DataArray
         """
         # Load parameters
         p = self.human_health_parameters["high_sleep_disorder"][noise_type_hsd]
@@ -298,13 +327,15 @@ class HumanHealth:
         self,
         lden: xr.DataArray,
         noise_type: str,
-    ) -> np.ndarray:
-        """
-        Calculate the Disability-Adjusted Life Years (DALYs) for ischemic heart disease
-        based on the noise level (Lden) and the number of exposed individuals.
-        :param lden: Noise level in Lden (day-evening-night noise level).
-        :param noise_type: Type of noise (e.g., "road middle", "railway").
-        :return: DALYs for ischemic heart disease.
+    ) -> xr.DataArray:
+        """Calculate DALYs attributable to ischemic heart disease.
+
+        :param lden: Day-evening-night noise level raster.
+        :type lden: xarray.DataArray
+        :param noise_type: Human health parameter set identifier.
+        :type noise_type: str
+        :returns: DALY raster for ischemic heart disease.
+        :rtype: xarray.DataArray
         """
         p = self.human_health_parameters["ischemic_heart_disease"][noise_type]
         rr_per_10db = p["a"]
@@ -333,13 +364,15 @@ class HumanHealth:
         self,
         lden: xr.DataArray,
         noise_type: str,
-    ) -> np.ndarray:
-        """
-        Calculate the Disability-Adjusted Life Years (DALYs) for diabetes
-        based on the noise level (Lden) and the number of exposed individuals.
-        :param lden: Noise level in Lden (day-evening-night noise level).
-        :param noise_type: Type of noise (e.g., "road middle", "railway").
-        :return: DALYs for diabetes.
+    ) -> xr.DataArray:
+        """Calculate DALYs attributable to diabetes.
+
+        :param lden: Day-evening-night noise level raster.
+        :type lden: xarray.DataArray
+        :param noise_type: Human health parameter set identifier.
+        :type noise_type: str
+        :returns: DALY raster for diabetes.
+        :rtype: xarray.DataArray
         """
         p = self.human_health_parameters["diabetes"][noise_type]
         rr_per_10db = p["a"]
@@ -367,13 +400,15 @@ class HumanHealth:
         self,
         lden: xr.DataArray,
         noise_type: str,
-    ):
-        """
-        Calculate the Disability-Adjusted Life Years (DALYs) for stroke
-        based on the noise level (Lden) and the number of exposed individuals.
-        :param lden: Noise level in Lden (day-evening-night noise level).
-        :param noise_type: Type of noise (e.g., "road middle", "railway").
-        :return: DALYs for stroke.
+    ) -> xr.DataArray:
+        """Calculate DALYs attributable to stroke.
+
+        :param lden: Day-evening-night noise level raster.
+        :type lden: xarray.DataArray
+        :param noise_type: Human health parameter set identifier.
+        :type noise_type: str
+        :returns: DALY raster for stroke.
+        :rtype: xarray.DataArray
         """
         p = self.human_health_parameters["stroke"][noise_type]
         rr_per_10db = p["a"]
@@ -405,15 +440,20 @@ class HumanHealth:
         noise_type_hsd: str = "combined",
         noise_type: str = "road middle",
     ) -> xr.Dataset:
-        """
-        Calculate the total Disability-Adjusted Life Years (DALYs) for all health impacts
-        based on the noise levels (Lden, Lnight) and the number of exposed individuals.
-        :param lden: Noise level in Lden (day-evening-night noise level).
-        :param lnight: Noise level in Lnight (night noise level).
-        :param noise_type_ha: Type of noise for highly annoyed (e.g., "road_without_alpinestudies", "combined").
-        :param noise_type_hsd: Type of noise for high sleep disorder (e.g., "combined", "road_without_alpinestudies").
-        :param noise_type: Type of noise for ischemic heart disease, diabetes, and stroke (e.g., "road middle", "railway").
-        :return: Total DALYs for all health impacts.
+        """Aggregate DALY layers across all health indicators.
+
+        :param lden: Day-evening-night noise level raster.
+        :type lden: xarray.DataArray
+        :param lnight: Night noise level raster.
+        :type lnight: xarray.DataArray
+        :param noise_type_ha: Parameter set for the highly annoyed metric.
+        :type noise_type_ha: str
+        :param noise_type_hsd: Parameter set for the sleep disorder metric.
+        :type noise_type_hsd: str
+        :param noise_type: Parameter set for chronic disease metrics.
+        :type noise_type: str
+        :returns: Dataset containing the DALY layers for each impact.
+        :rtype: xarray.Dataset
         """
         dalys_ha = self.calculate_highly_annoyed_dalys(lden, noise_type_ha)
         dalys_hsd = self.calculate_high_sleep_disorder_dalys(lnight, noise_type_hsd)
@@ -437,12 +477,10 @@ class HumanHealth:
         return ds
 
     def export_to_excel(self, filepath: str = "human_health_results.xlsx") -> None:
-        """
-        Export summary and raster data to an Excel file with multiple sheets:
-        - Sheet 1: Metadata (country, population, disease data, parameters)
-        - Sheet 2: L_den (100x100)
-        - Sheet 3: L_night (100x100)
-        - Sheet 4+: DALY layers (100x100 per disease cause)
+        """Export human health inputs and results to an Excel workbook.
+
+        :param filepath: Destination path for the generated workbook.
+        :type filepath: str
         """
         with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
             # --- Sheet 1: Metadata summary ---

@@ -3,15 +3,14 @@ import xarray as xr
 from . import DATA_DIR
 
 def get_capacity_factor(lat, lon):
-    """
-    Fetch capacity factor data for a given latitude and longitude.
+    """Interpolate the GWA3 capacity factor at a given location.
 
-    Parameters:
-        lat (float): Latitude in degrees.
-        lon (float): Longitude in degrees.
-
-    Returns:
-        xarray.DataArray: Capacity factor at the specified location.
+    :param lat: Latitude in degrees.
+    :type lat: float
+    :param lon: Longitude in degrees.
+    :type lon: float
+    :returns: Capacity factor for the requested coordinates.
+    :rtype: float
     """
     filepath = DATA_DIR / "gwa3_capacityfactor_latlon.nc"
     ds = xr.open_dataset(filepath)
@@ -21,14 +20,18 @@ def get_capacity_factor(lat, lon):
     return cf
 
 def get_electricity_production(lat: float, lon: float, power: int, lifetime: int):
-    """
-    Fetch electricity production data for a given latitude and longitude.
+    """Estimate the lifetime electricity production for a wind turbine.
 
     :param lat: Latitude in degrees.
+    :type lat: float
     :param lon: Longitude in degrees.
+    :type lon: float
     :param power: Rated power of the wind turbine in kW.
-    :param lifetime: Lifetime of the wind turbine in years.
-    :return: Electricity production in kWh over the lifetime.
+    :type power: int
+    :param lifetime: Operational lifetime in years.
+    :type lifetime: int
+    :returns: Energy yield in kWh produced over the lifetime.
+    :rtype: float
     """
     capacity_factor = get_capacity_factor(lat, lon)
     down_time = 0.05  # Example downtime percentage

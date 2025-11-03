@@ -7,8 +7,11 @@ import yaml
 
 
 def load_atmospheric_absorption_coefficients():
-    """
-    Load YAML file containing the atmospheric absorption coefficients.
+    """Load atmospheric absorption coefficients from disk.
+
+    :returns: Nested mapping keyed by temperature and relative humidity with
+        absorption coefficients per frequency band.
+    :rtype: dict
     """
 
     with open(DATA_DIR / "absorption_coefficients.yaml") as file:
@@ -16,11 +19,13 @@ def load_atmospheric_absorption_coefficients():
 
 
 def compute_weighted_absorption(absorption_coefficients):
-    """
-    Compute the weighted absorption coefficient directly using spectral levels in dB.
+    """Compute a weighted atmospheric absorption coefficient.
 
-    :param absorption_coefficients: Dictionary of absorption coefficients (dB/km) by frequency band (Hz).
-    :return: Weighted absorption coefficient (alpha_weighted) in dB/km.
+    :param absorption_coefficients: Absorption coefficients in dB/km keyed by
+        third-octave band centre frequency.
+    :type absorption_coefficients: dict[str, float]
+    :returns: Weighted absorption coefficient in dB/km.
+    :rtype: float
     """
     # Third-octave bands and their A-weighting corrections
     frequencies = list(absorption_coefficients.keys())
@@ -54,15 +59,16 @@ def compute_weighted_absorption(absorption_coefficients):
 
 
 def get_absorption_coefficient(temperature=20, humidity=70):
-    """
-    Get the atmospheric absorption coefficient for a given noise level, temperature, and humidity.
+    """Return the weighted absorption coefficient for the given conditions.
 
-    :param temperature: The temperature in degrees Celsius. Default is 20.
+    :param temperature: Air temperature in degrees Celsius.
     :type temperature: float
-    :param humidity: The relative humidity in percent. Default is 70.
+    :param humidity: Relative humidity expressed as a percentage.
     :type humidity: float
-    :return: The atmospheric absorption coefficient, in dB/km.
-
+    :returns: Weighted absorption coefficient in dB/km.
+    :rtype: float
+    :raises ValueError: If the requested temperature or humidity is not
+        available in the coefficient table.
     """
 
     # Load the atmospheric absorption coefficients
